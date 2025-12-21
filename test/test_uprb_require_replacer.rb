@@ -9,7 +9,7 @@ class TestUprbRequireReplacer < Minitest::Test
   DLEXT = RbConfig::CONFIG["DLEXT"]
 
   def test_replace_stdlib
-    replaced = Uprb::RequireReplacer.replace(<<~CODE)
+    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.replace(f.path) }
       require "rbconfig"
     CODE
 
@@ -17,7 +17,7 @@ class TestUprbRequireReplacer < Minitest::Test
   end
 
   def test_replace_defaultgem
-    replaced = Uprb::RequireReplacer.replace(<<~CODE)
+    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.replace(f.path) }
       require "fileutils"
     CODE
 
@@ -25,7 +25,7 @@ class TestUprbRequireReplacer < Minitest::Test
   end
 
   def test_replace_bundledgem
-    replaced = Uprb::RequireReplacer.replace(<<~CODE)
+    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.replace(f.path) }
       require "minitest"
     CODE
 
@@ -33,7 +33,7 @@ class TestUprbRequireReplacer < Minitest::Test
   end
 
   def test_replace_rubygemsgem
-    replaced = Uprb::RequireReplacer.replace(<<~CODE)
+    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.replace(f.path) }
       require "aws-sdk-core"
     CODE
 
@@ -42,7 +42,7 @@ class TestUprbRequireReplacer < Minitest::Test
 
 
   def test_replace_require_so
-    replaced = Uprb::RequireReplacer.replace(File.read(fixture_path("require_etc_so.rb")))
+    replaced = Uprb::RequireReplacer.replace(fixture_path("require_etc_so.rb"))
 
     assert_match %r["/.+/etc.#{DLEXT}"], replaced
 

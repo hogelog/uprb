@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "fileutils"
-require "tempfile"
 require "rbconfig"
 require "pp"
 require "stringio"
@@ -13,15 +12,15 @@ module Uprb
 
       RUBYGEMS_REQUIRED = %w[]
 
-      def replace(source)
-        recorded_mapping = capture_mapping(source)
+      def replace(source_path)
+        source = File.read(source_path)
+        recorded_mapping = capture_mapping(source_path)
         @mapping = recorded_mapping.dup
         rewrite_source(source, recorded_mapping)
       end
 
       def pack(source_path, dest_path)
-        source = File.read(source_path)
-        rewritten = replace(source)
+        rewritten = replace(source_path)
         File.write(dest_path, rewritten)
         FileUtils.chmod("+x", dest_path)
         rewritten
@@ -33,7 +32,7 @@ module Uprb
         end
 
         source = File.read(source_path)
-        mapping = capture_mapping(source)
+        mapping = capture_mapping(source_path)
         embedded, external = build_iseq_payload(mapping)
         ruby_source = source_with_iseq_require_hook(source)
         main_iseq = RubyVM::InstructionSequence.compile(ruby_source, source_path, source_path)
@@ -67,12 +66,8 @@ module Uprb
 
       private
 
-      def capture_mapping(source)
-        Tempfile.create(["uprb-src", ".rb"]) do |file|
-          file.write(source)
-          file.flush
-          execute_with_tracker(file.path)
-        end
+      def capture_mapping(source_path)
+        execute_with_tracker(source_path)
       end
 
       def execute_with_tracker(path)

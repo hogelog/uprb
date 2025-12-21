@@ -82,8 +82,8 @@ module Uprb
           load path
         rescue StandardError => e
           message = ["execution failed: #{e.class}: #{e.message}"]
-          message << "stdout:\n#{stdout.string}" unless stdout.string.empty?
-          message << "stderr:\n#{stderr.string}" unless stderr.string.empty?
+          message << "stdout: #{stdout.string}"
+          message << "stderr: #{stderr.string}"
           raise Uprb::Error, message.join("\n")
         ensure
           $stdout = original_stdout

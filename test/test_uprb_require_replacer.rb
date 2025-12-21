@@ -58,4 +58,16 @@ class TestUprbRequireReplacer < Minitest::Test
 
     assert_match %r["/.+/etc.#{DLEXT}"], script
   end
+
+  def test_pack_iseq_script
+    script_path = File.join("tmp", "requires_etc_so_iseq")
+    Uprb::RequireReplacer.pack_iseq(fixture_path("require_etc_so.rb"), script_path)
+    script = File.read(script_path)
+
+    assert_includes script, "InstructionSequence"
+
+    out, status = Open3.capture2e(script_path)
+    assert status.success?
+    assert_includes out, "Etc loaded: true"
+  end
 end

@@ -5,7 +5,10 @@ require_relative "../uprb"
 
 module Uprb
   class CLI
-    USAGE = "Usage: uprb pack <src.rb> <dest>"
+    USAGE = <<~USAGE.chomp
+    Usage:
+      uprb pack <src.rb> <dest> [--skip-iseq-cache]
+    USAGE
 
     def self.start(argv = ARGV, stdout: $stdout, stderr: $stderr)
       new(argv, stdout: stdout, stderr: stderr).run
@@ -46,7 +49,7 @@ module Uprb
     def pack_command
       src = @argv.shift or raise Uprb::Error, "missing <src.rb>"
       dest = @argv.shift or raise Uprb::Error, "missing <dist>"
-      raise Uprb::Error, "unexpected arguments: #{@argv.join(' ')}" unless @argv.empty?
+      skip_iseq = parse_pack_options
 
       src_path = File.expand_path(src)
       dest_path = File.expand_path(dest)
@@ -54,10 +57,31 @@ module Uprb
       raise Uprb::Error, "source not found: #{src}" unless File.file?(src_path)
 
       FileUtils.mkdir_p(File.dirname(dest_path))
-      Uprb::RequireReplacer.pack(src_path, dest_path)
+      if skip_iseq
+        Uprb::RequireReplacer.pack(src_path, dest_path)
+      else
+        Uprb::RequireReplacer.pack_iseq(src_path, dest_path)
+      end
 
       @stdout.puts("Packed #{dest_path}")
       0
+    end
+
+    def parse_pack_options
+      skip_iseq = false
+
+      while @argv.any?
+        arg = @argv.shift
+        case arg
+        when "--skip-iseq-cache"
+          skip_iseq = true
+        else
+          remaining = [arg, *@argv].join(" ")
+          raise Uprb::Error, "unexpected arguments: #{remaining}"
+        end
+      end
+
+      skip_iseq
     end
   end
 end

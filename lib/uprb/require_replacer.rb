@@ -27,6 +27,44 @@ module Uprb
         rewritten
       end
 
+      def pack_iseq(source_path, dest_path)
+        unless defined?(RubyVM::InstructionSequence)
+          raise Uprb::Error, "RubyVM::InstructionSequence unavailable"
+        end
+
+        source = File.read(source_path)
+        mapping = capture_mapping(source)
+        embedded, external = build_iseq_payload(mapping)
+        ruby_source = source_with_iseq_require_hook(source)
+        main_iseq = RubyVM::InstructionSequence.compile(ruby_source, source_path, source_path)
+        payload = Marshal.dump({
+          "embedded" => embedded,
+          "external" => external,
+          "main" => main_iseq.to_binary
+        })
+
+        wrapper = <<~RUBY
+        #!#{RbConfig.ruby} --disable-gems
+        DATA.binmode
+        payload = DATA.read
+        data = Marshal.load(payload)
+
+        EMBEDDED_ISEQ = data.fetch("embedded")
+        REQUIRE_MAP = data.fetch("external")
+
+        iseq = RubyVM::InstructionSequence.load_from_binary(data.fetch("main"))
+        iseq.eval
+        __END__
+        RUBY
+
+        File.open(dest_path, "wb") do |file|
+          file.write(wrapper)
+          file.write(payload)
+        end
+        FileUtils.chmod("+x", dest_path)
+        wrapper
+      end
+
       private
 
       def capture_mapping(source)
@@ -62,8 +100,12 @@ module Uprb
       end
 
       def rewrite_source(source, mapping)
+        shebang = "#!#{RbConfig.ruby} --disable-gems\n"
+        shebang + source_with_require_hook(source, mapping)
+      end
+
+      def source_with_require_hook(source, mapping)
         pre_code = <<~CODE
-        #!#{RbConfig.ruby} --disable-gems
         module FixedRequire
           REQUIRE_MAP = #{ mapping.pretty_inspect }.freeze
 
@@ -81,11 +123,54 @@ module Uprb
             end
           end
         end
-        
+
         Kernel.prepend(FixedRequire)
         #{ RUBYGEMS_REQUIRED.map{ %[require "#{it}"] }.join("\n") }
         CODE
         pre_code + source
+      end
+
+      def source_with_iseq_require_hook(source)
+        pre_code = <<~CODE
+        module FixedRequire
+          def require(name)
+            entry = EMBEDDED_ISEQ[name]
+            if entry
+              path, binary = entry
+              return false if $LOADED_FEATURES.include?(path) || $LOADED_FEATURES.include?(name)
+              $LOADED_FEATURES << path
+              $LOADED_FEATURES << name unless $LOADED_FEATURES.include?(name)
+              RubyVM::InstructionSequence.load_from_binary(binary).eval
+              true
+            elsif (path = REQUIRE_MAP[name])
+              super(path)
+            else
+              super(name)
+            end
+          end
+        end
+
+        Kernel.prepend(FixedRequire)
+        #{ RUBYGEMS_REQUIRED.map{ %[require "#{it}"] }.join("\n") }
+        CODE
+        pre_code + source
+      end
+
+      def build_iseq_payload(mapping)
+        embedded = {}
+        external = {}
+
+        mapping.each do |name, path|
+          if path.is_a?(String) && File.file?(path) && File.extname(path) == ".rb"
+            source = File.read(path)
+            iseq = RubyVM::InstructionSequence.compile(source, path, path)
+            embedded[name] = [path, iseq.to_binary]
+          else
+            external[name] = path
+          end
+        end
+
+        [embedded, external]
       end
     end
   end

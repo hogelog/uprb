@@ -74,20 +74,27 @@ module Uprb
         Uprb::RequireTracker.start
         stdout, stderr = StringIO.new, StringIO.new
         original_stdout, original_stderr = $stdout, $stderr
+        original_argv = ARGV.dup
+        original_program_name = $PROGRAM_NAME
         $stdout, $stderr = stdout, stderr
         mapping = nil
 
         begin
           RUBYGEMS_REQUIRED.each { require it }
+          ARGV.replace([])
+          $PROGRAM_NAME = path
           load path
+        rescue SystemExit => e
         rescue StandardError => e
           message = ["execution failed: #{e.class}: #{e.message}"]
-          message << "stdout: #{stdout.string}"
-          message << "stderr: #{stderr.string}"
+          message << "stdout: #{stdout.string}" unless stdout.string.empty?
+          message << "stderr: #{stderr.string}" unless stderr.string.empty?
           raise Uprb::Error, message.join("\n")
         ensure
           $stdout = original_stdout
           $stderr = original_stderr
+          ARGV.replace(original_argv)
+          $PROGRAM_NAME = original_program_name
           mapping = Uprb::RequireTracker.stop
         end
 

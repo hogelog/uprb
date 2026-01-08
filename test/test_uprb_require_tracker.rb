@@ -7,12 +7,12 @@ class TestUprbRequireTracker < Minitest::Test
   def teardown = Uprb::RequireTracker.stop
 
   def test_records
-    require "set"
+    require "pathname"
 
-    tracked = Uprb::RequireTracker.mapping["set"]
+    tracked = Uprb::RequireTracker.mapping["pathname"]
     assert tracked
     assert File.absolute_path?(tracked)
-    assert tracked.end_with?("set.rb")
+    assert tracked.end_with?("pathname.rb")
   end
 
   def test_records_dlext

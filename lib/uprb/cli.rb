@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "optparse"
 require_relative "../uprb"
 
 module Uprb
@@ -12,14 +13,12 @@ module Uprb
       uprb gem pack <gem> [--skip-iseq-cache]
     USAGE
 
-    def self.start(argv = ARGV, stdout: $stdout, stderr: $stderr)
-      new(argv, stdout: stdout, stderr: stderr).run
+    def self.start(argv = ARGV)
+      new(argv).run
     end
 
-    def initialize(argv, stdout:, stderr:)
+    def initialize(argv)
       @argv = argv.dup
-      @stdout = stdout
-      @stderr = stderr
     end
 
     def run
@@ -31,29 +30,26 @@ module Uprb
       when "gem"
         gem_command
       when "--version", "-v"
-        @stdout.puts(Uprb::VERSION)
-        0
+        $stdout.puts(Uprb::VERSION)
       when "--help", "-h", nil
-        @stdout.puts(USAGE)
-        command.nil? ? 1 : 0
+        $stdout.puts(USAGE)
       else
-        @stderr.puts(USAGE)
-        1
+        $stderr.puts(USAGE)
       end
     rescue Uprb::Error => e
-      @stderr.puts("uprb: #{e.message}")
-      1
+      $stderr.puts("uprb: #{e.message}")
+      exit 1
     rescue StandardError => e
-      @stderr.puts("uprb: #{e.class}: #{e.message}")
-      1
+      $stderr.puts("uprb: #{e.class}: #{e.message}")
+      exit 1
     end
 
     private
 
     def pack_command
-      src = @argv.shift or raise Uprb::Error, "missing <src.rb>"
-      dest = @argv.shift or raise Uprb::Error, "missing <dist>"
-      skip_iseq = parse_pack_options
+      options, args = parse_pack_options(@argv)
+      src = args.shift or raise Uprb::Error, "missing <src.rb>"
+      dest = args.shift or raise Uprb::Error, "missing <dist>"
 
       src_path = File.expand_path(src)
       dest_path = File.expand_path(dest)
@@ -61,14 +57,13 @@ module Uprb
       raise Uprb::Error, "source not found: #{src}" unless File.file?(src_path)
 
       FileUtils.mkdir_p(File.dirname(dest_path))
-      if skip_iseq
+      if options[:skip_iseq_cache]
         Uprb::RequireReplacer.pack(src_path, dest_path)
       else
         Uprb::RequireReplacer.pack_iseq(src_path, dest_path)
       end
 
-      @stdout.puts("Packed #{dest_path}")
-      0
+      $stdout.puts("Packed #{dest_path}")
     end
 
     def gem_command
@@ -76,46 +71,35 @@ module Uprb
 
       case subcommand
       when "install"
-        gem_name = @argv.shift or raise Uprb::Error, "missing <gem>"
-        skip_iseq = parse_pack_options
+        options, args = parse_pack_options(@argv)
+        gem_name = args.shift or raise Uprb::Error, "missing <gem>"
         install_gem(gem_name)
-        pack_gem_executables(gem_name, skip_iseq)
+        pack_gem_executables(gem_name, options[:skip_iseq_cache])
       when "pack"
-        gem_name = @argv.shift or raise Uprb::Error, "missing <gem>"
-        skip_iseq = parse_pack_options
-        pack_gem_executables(gem_name, skip_iseq)
+        options, args = parse_pack_options(@argv)
+        gem_name = args.shift or raise Uprb::Error, "missing <gem>"
+        pack_gem_executables(gem_name, options[:skip_iseq_cache])
       else
-        remaining = [subcommand, *@argv].compact.join(" ")
-        raise Uprb::Error, "unexpected arguments: #{remaining}"
+        $stdout.puts(USAGE)
       end
-      0
     end
 
-    def parse_pack_options
-      skip_iseq = false
+    def parse_pack_options(argv)
+      options = {
+        skip_iseq_cache: false
+      }
+      parser = OptionParser.new
+      parser.on("--skip-iseq-cache") { options[:skip_iseq_cache] = true }
+      args = parser.parse(argv)
 
-      while @argv.any?
-        arg = @argv.shift
-        case arg
-        when "--skip-iseq-cache"
-          skip_iseq = true
-        else
-          remaining = [arg, *@argv].join(" ")
-          raise Uprb::Error, "unexpected arguments: #{remaining}"
-        end
-      end
-
-      skip_iseq
+      [options, args]
+    rescue OptionParser::ParseError => e
+      raise Uprb::Error, e.message
     end
 
     def install_gem(gem_name)
-      require "rubygems/dependency_installer"
-
-      installer = Gem::DependencyInstaller.new(document: [])
-      installer.install(gem_name)
-      Gem::Specification.reset
-    rescue Gem::InstallError, Gem::Exception => e
-      raise Uprb::Error, e.message
+      command = [RbConfig.ruby, "-S", "gem", "install", gem_name]
+      system(*command) or raise Uprb::Error, "gem install failed: #{gem_name}"
     end
 
     def pack_gem_executables(gem_name, skip_iseq)
@@ -135,7 +119,7 @@ module Uprb
         else
           Uprb::RequireReplacer.pack_iseq(source_path, dest_path)
         end
-        @stdout.puts("Packed #{dest_path}")
+        $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e
       raise Uprb::Error, e.message

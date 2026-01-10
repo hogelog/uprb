@@ -9,15 +9,15 @@ class TestUprbRequireReplacer < Minitest::Test
   DLEXT = RbConfig::CONFIG["DLEXT"]
 
   def test_replace_stdlib
-    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.replace(f.path) }
+    packed = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.pack(f.path) }
       require "rbconfig"
     CODE
 
-    assert_match %r["/.+/rbconfig.rb"], replaced
+    assert_match %r["/.+/rbconfig.rb"], packed
   end
 
   def test_replace_defaultgem
-    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.replace(f.path) }
+    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.pack(f.path) }
       require "fileutils"
     CODE
 
@@ -25,7 +25,7 @@ class TestUprbRequireReplacer < Minitest::Test
   end
 
   def test_replace_bundledgem
-    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.replace(f.path) }
+    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.pack(f.path) }
       require "minitest"
     CODE
 
@@ -33,7 +33,7 @@ class TestUprbRequireReplacer < Minitest::Test
   end
 
   def test_replace_rubygemsgem
-    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.replace(f.path) }
+    replaced = with_tempfile(<<~CODE) {|f| Uprb::RequireReplacer.pack(f.path) }
       require "aws-sdk-core"
     CODE
 
@@ -42,7 +42,7 @@ class TestUprbRequireReplacer < Minitest::Test
 
 
   def test_replace_require_so
-    replaced = Uprb::RequireReplacer.replace(fixture_path("require_etc_so.rb"))
+    replaced = Uprb::RequireReplacer.pack(fixture_path("require_etc_so.rb"))
 
     assert_match %r["/.+/etc.#{DLEXT}"], replaced
 
@@ -53,7 +53,7 @@ class TestUprbRequireReplacer < Minitest::Test
 
   def test_pack_script
     script_path = File.join("tmp", "requires_etc_so")
-    Uprb::RequireReplacer.pack(fixture_path("require_etc_so.rb"), script_path)
+    Uprb::RequireReplacer.pack(fixture_path("require_etc_so.rb"), dest_path: script_path)
     script = File.read(script_path)
 
     assert_match %r["/.+/etc.#{DLEXT}"], script
@@ -61,7 +61,7 @@ class TestUprbRequireReplacer < Minitest::Test
 
   def test_pack_iseq_script
     script_path = File.join("tmp", "requires_etc_so_iseq")
-    Uprb::RequireReplacer.pack_iseq(fixture_path("require_etc_so.rb"), script_path)
+    Uprb::RequireReplacer.pack_iseq(fixture_path("require_etc_so.rb"), dest_path: script_path)
     script = File.read(script_path)
 
     assert_includes script, "InstructionSequence"

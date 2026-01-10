@@ -58,9 +58,9 @@ module Uprb
 
       FileUtils.mkdir_p(File.dirname(dest_path))
       if options[:skip_iseq_cache]
-        Uprb::RequireReplacer.pack(src_path, dest_path)
+        Uprb::RequireReplacer.pack(src_path, dest_path:)
       else
-        Uprb::RequireReplacer.pack_iseq(src_path, dest_path)
+        Uprb::RequireReplacer.pack_iseq(src_path, dest_path:)
       end
 
       $stdout.puts("Packed #{dest_path}")
@@ -115,9 +115,9 @@ module Uprb
         dest_path = File.join(Gem.bindir, exe)
 
         if skip_iseq
-          Uprb::RequireReplacer.pack(source_path, dest_path)
+          Uprb::RequireReplacer.pack(source_path, dest_path:)
         else
-          Uprb::RequireReplacer.pack_iseq(source_path, dest_path)
+          Uprb::RequireReplacer.pack_iseq(source_path, dest_path:)
         end
         $stdout.puts("Packed #{dest_path}")
       end

@@ -10,65 +10,51 @@ module Uprb
     class << self
       attr_reader :mapping
 
-      RUBYGEMS_REQUIRED = %w[]
-
-      def replace(source_path)
+      def pack(source_path, dest_path: nil)
         source = File.read(source_path)
-        recorded_mapping = capture_mapping(source_path)
-        @mapping = recorded_mapping.dup
-        rewrite_source(source, recorded_mapping)
-      end
+        mapping = execute_with_tracker(source_path)
+        ruby_source = source_with_require_hook(source, mapping)
+        program = "#!#{RbConfig.ruby} --disable-gems\n" + ruby_source
+        return program unless dest_path
 
-      def pack(source_path, dest_path)
-        rewritten = replace(source_path)
-        File.write(dest_path, rewritten)
+        File.write(dest_path, program)
         FileUtils.chmod("+x", dest_path)
-        rewritten
       end
 
-      def pack_iseq(source_path, dest_path)
-        unless defined?(RubyVM::InstructionSequence)
-          raise Uprb::Error, "RubyVM::InstructionSequence unavailable"
-        end
-
+      def pack_iseq(source_path, dest_path: nil)
         source = File.read(source_path)
-        mapping = capture_mapping(source_path)
+        mapping = execute_with_tracker(source_path)
         embedded, external = build_iseq_payload(mapping)
         ruby_source = source_with_iseq_require_hook(source)
         main_iseq = RubyVM::InstructionSequence.compile(ruby_source, source_path, source_path)
         payload = Marshal.dump({
-          "embedded" => embedded,
-          "external" => external,
-          "main" => main_iseq.to_binary
+          embedded: embedded,
+          external: external,
+          main: main_iseq.to_binary
         })
 
         wrapper = <<~RUBY
-        #!#{RbConfig.ruby} --disable-gems
-        DATA.binmode
-        payload = DATA.read
-        data = Marshal.load(payload)
+           #!#{RbConfig.ruby} --disable-gems
+           DATA.binmode
+           payload = DATA.read
+           data = Marshal.load(payload)
 
-        EMBEDDED_ISEQ = data.fetch("embedded")
-        REQUIRE_MAP = data.fetch("external")
+           EMBEDDED_ISEQ = data.fetch(:embedded)
+           REQUIRE_MAP = data.fetch(:external)
 
-        iseq = RubyVM::InstructionSequence.load_from_binary(data.fetch("main"))
-        iseq.eval
-        __END__
+           iseq = RubyVM::InstructionSequence.load_from_binary(data.fetch(:main))
+           iseq.eval
+           __END__
         RUBY
 
-        File.open(dest_path, "wb") do |file|
-          file.write(wrapper)
-          file.write(payload)
-        end
+        program = wrapper + payload
+        return program unless dest_path
+
+        File.write(dest_path, program)
         FileUtils.chmod("+x", dest_path)
-        wrapper
       end
 
       private
-
-      def capture_mapping(source_path)
-        execute_with_tracker(source_path)
-      end
 
       def execute_with_tracker(path)
         Uprb::RequireTracker.start
@@ -80,7 +66,6 @@ module Uprb
         mapping = nil
 
         begin
-          RUBYGEMS_REQUIRED.each { require it }
           ARGV.replace([])
           $PROGRAM_NAME = path
           load path
@@ -101,13 +86,8 @@ module Uprb
         mapping
       end
 
-      def rewrite_source(source, mapping)
-        shebang = "#!#{RbConfig.ruby} --disable-gems\n"
-        shebang + source_with_require_hook(source, mapping)
-      end
-
       def source_with_require_hook(source, mapping)
-        pre_code = <<~CODE
+        pre_code = <<~RUBY
         module FixedRequire
           REQUIRE_MAP = #{ mapping.pretty_inspect }.freeze
 
@@ -127,13 +107,12 @@ module Uprb
         end
 
         Kernel.prepend(FixedRequire)
-        #{ RUBYGEMS_REQUIRED.map{ %[require "#{it}"] }.join("\n") }
-        CODE
+        RUBY
         pre_code + source
       end
 
       def source_with_iseq_require_hook(source)
-        pre_code = <<~CODE
+        pre_code = <<~RUBY
         module FixedRequire
           def require(name)
             entry = EMBEDDED_ISEQ[name]
@@ -153,8 +132,7 @@ module Uprb
         end
 
         Kernel.prepend(FixedRequire)
-        #{ RUBYGEMS_REQUIRED.map{ %[require "#{it}"] }.join("\n") }
-        CODE
+        RUBY
         pre_code + source
       end
 

@@ -32,4 +32,14 @@ class TestUprbRequireTracker < Minitest::Test
     assert File.absolute_path?(tracked)
     assert tracked.end_with?("monitor.rb")
   end
+
+  def test_records_require_reltive
+    require_relative "fixtures/require_relative.rb"
+
+    caller_path = fixture_path("require_relative.rb")
+    assert caller_path == Uprb::RequireTracker.mapping[caller_path]
+
+    relative_path = fixture_path("foo/bar")
+    assert "#{relative_path}.rb" == Uprb::RequireTracker.mapping[relative_path]
+  end
 end

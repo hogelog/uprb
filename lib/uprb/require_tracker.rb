@@ -21,7 +21,7 @@ module Uprb
 
     class << self
       def record_require(name)
-        return if !@mapping || @mapping[name] || absolute_path?(name)
+        return if !@mapping || @mapping[name]
 
         path = find_loaded_feature(name)
         @mapping[name] = path if path
@@ -39,6 +39,7 @@ module Uprb
 
         Kernel.module_eval do
           alias_method :uprb_original_require, :require
+          alias_method :uprb_original_require_relative, :require_relative
 
           def require(name)
             required = uprb_original_require(name)
@@ -46,7 +47,16 @@ module Uprb
             required
           end
 
+          def require_relative(path)
+            caller_path = caller_locations(1, 1).first.path
+            absolute_path = File.expand_path(path, File.dirname(caller_path))
+            required = uprb_original_require(absolute_path)
+            Uprb::RequireTracker.record_require(absolute_path)
+            required
+          end
+
           private :require, :uprb_original_require
+          private :require_relative, :uprb_original_require_relative
         end
 
         @require_hook_installed = true

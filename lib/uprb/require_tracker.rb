@@ -2,6 +2,8 @@
 
 module Uprb
   module RequireTracker
+    SO_EXTS = %w[.so .o]
+
     class << self
       attr_reader :mapping
 
@@ -15,11 +17,7 @@ module Uprb
         @mapping = nil
         return recorded
       end
-    end
 
-    SO_EXTS = %w[.so .o]
-
-    class << self
       def record_require(name)
         return if !@mapping || @mapping[name]
 

@@ -40,7 +40,6 @@ class TestUprbRequireReplacer < Minitest::Test
     assert_match %r["/.+/aws-sdk-core.rb"], replaced
   end
 
-
   def test_replace_require_so
     replaced = Uprb::RequireReplacer.pack(fixture_path("require_etc_so.rb"))
 

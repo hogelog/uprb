@@ -87,9 +87,11 @@ module Uprb
       end
 
       def source_with_require_hook(source, mapping)
+        mapping_without_absolute = mapping.reject{|name, path| File.absolute_path?(name) }
+
         pre_code = <<~RUBY
         module FixedRequire
-          REQUIRE_MAP = #{ mapping.pretty_inspect }.freeze
+          REQUIRE_MAP = #{ mapping_without_absolute.pretty_inspect.chomp }.freeze
 
           def require(name)
             path = REQUIRE_MAP[name]

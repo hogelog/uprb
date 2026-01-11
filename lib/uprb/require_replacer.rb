@@ -11,18 +11,20 @@ module Uprb
     class << self
       attr_reader :mapping
 
-      def pack(source_path, dest_path: nil)
+      def pack(source_path, dest_path: nil, enable_rubygems: false)
         source = File.read(source_path)
         mapping = execute_with_tracker(source_path)
         ruby_source = source_with_require_hook(source, mapping)
-        program = "#!#{RbConfig.ruby} --disable-gems\n" + ruby_source
+        shebang = "#!#{RbConfig.ruby}"
+        shebang += " --disable-gems" unless enable_rubygems
+        program = "#{shebang}\n#{ruby_source}"
         return program unless dest_path
 
         File.write(dest_path, program)
         FileUtils.chmod("+x", dest_path)
       end
 
-      def pack_iseq(source_path, dest_path: nil)
+      def pack_iseq(source_path, dest_path: nil, enable_rubygems: false)
         source = File.read(source_path)
         mapping = execute_with_tracker(source_path)
         embedded, external = build_iseq_payload(mapping)
@@ -34,8 +36,10 @@ module Uprb
           main: main_iseq.to_binary
         })
 
+        shebang = "#!#{RbConfig.ruby}"
+        shebang += " --disable-gems" unless enable_rubygems
         wrapper = <<~RUBY
-           #!#{RbConfig.ruby} --disable-gems
+           #{shebang}
            DATA.binmode
            data = Marshal.load(DATA)
 

@@ -8,9 +8,9 @@ module Uprb
   class CLI
     USAGE = <<~USAGE.chomp
     Usage:
-      uprb pack <src.rb> <dest> [--skip-iseq-cache]
-      uprb gem install <gem> [--skip-iseq-cache]
-      uprb gem pack <gem> [--skip-iseq-cache]
+      uprb pack <src.rb> <dest> [--skip-iseq-cache] [--enable-rubygems]
+      uprb gem install <gem> [--skip-iseq-cache] [--enable-rubygems]
+      uprb gem pack <gem> [--skip-iseq-cache] [--enable-rubygems]
     USAGE
 
     def self.start(argv = ARGV)
@@ -58,9 +58,17 @@ module Uprb
 
       FileUtils.mkdir_p(File.dirname(dest_path))
       if options[:skip_iseq_cache]
-        Uprb::RequireReplacer.pack(src_path, dest_path:)
+        Uprb::RequireReplacer.pack(
+          src_path,
+          dest_path:,
+          enable_rubygems: options[:enable_rubygems]
+        )
       else
-        Uprb::RequireReplacer.pack_iseq(src_path, dest_path:)
+        Uprb::RequireReplacer.pack_iseq(
+          src_path,
+          dest_path:,
+          enable_rubygems: options[:enable_rubygems]
+        )
       end
 
       $stdout.puts("Packed #{dest_path}")
@@ -74,11 +82,11 @@ module Uprb
         options, args = parse_pack_options(@argv)
         gem_name = args.shift or raise Uprb::Error, "missing <gem>"
         install_gem(gem_name)
-        pack_gem_executables(gem_name, options[:skip_iseq_cache])
+        pack_gem_executables(gem_name, options)
       when "pack"
         options, args = parse_pack_options(@argv)
         gem_name = args.shift or raise Uprb::Error, "missing <gem>"
-        pack_gem_executables(gem_name, options[:skip_iseq_cache])
+        pack_gem_executables(gem_name, options)
       else
         $stdout.puts(USAGE)
       end
@@ -86,10 +94,14 @@ module Uprb
 
     def parse_pack_options(argv)
       options = {
-        skip_iseq_cache: false
+        skip_iseq_cache: false,
+        enable_rubygems: false
       }
       parser = OptionParser.new
       parser.on("--skip-iseq-cache") { options[:skip_iseq_cache] = true }
+      parser.on("--enable-rubygems") do
+        options[:enable_rubygems] = true
+      end
       args = parser.parse(argv)
 
       [options, args]
@@ -102,7 +114,7 @@ module Uprb
       system(*command) or raise Uprb::Error, "gem install failed: #{gem_name}"
     end
 
-    def pack_gem_executables(gem_name, skip_iseq)
+    def pack_gem_executables(gem_name, options)
       spec = Gem::Specification.find_by_name(gem_name)
       executables = spec.executables
       raise Uprb::Error, "no executables for gem: #{gem_name}" if executables.empty?
@@ -114,10 +126,18 @@ module Uprb
 
         dest_path = File.join(Gem.bindir, exe)
 
-        if skip_iseq
-          Uprb::RequireReplacer.pack(source_path, dest_path:)
+        if options[:skip_iseq_cache]
+          Uprb::RequireReplacer.pack(
+            source_path,
+            dest_path:,
+            enable_rubygems: options[:enable_rubygems]
+          )
         else
-          Uprb::RequireReplacer.pack_iseq(source_path, dest_path:)
+          Uprb::RequireReplacer.pack_iseq(
+            source_path,
+            dest_path:,
+            enable_rubygems: options[:enable_rubygems]
+          )
         end
         $stdout.puts("Packed #{dest_path}")
       end

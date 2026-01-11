@@ -4,6 +4,11 @@ uprb is a Ruby script packer.
 
 It builds a single executable from a Ruby script and freezes how it runs.
 The output is meant to be fast to start and deterministic.
+It also aims to make a script easier to use as a single command by fixing
+its runtime library paths at pack time.
+
+This tool does not produce native binaries. It assumes a Ruby interpreter
+is already installed and runs the packed script with that Ruby.
 
 ## Usage
 

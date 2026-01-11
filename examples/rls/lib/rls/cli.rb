@@ -43,7 +43,6 @@ module Rls
       Dir.children(abs_path).sort.each do |entry|
         STDOUT.puts(entry)
       end
-      0
     end
   end
 end

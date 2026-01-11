@@ -37,8 +37,7 @@ module Uprb
         wrapper = <<~RUBY
            #!#{RbConfig.ruby} --disable-gems
            DATA.binmode
-           payload = DATA.read
-           data = Marshal.load(payload)
+           data = Marshal.load(DATA)
 
            EMBEDDED_ISEQ = data.fetch(:embedded)
            REQUIRE_MAP = data.fetch(:external)

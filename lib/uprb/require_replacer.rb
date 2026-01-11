@@ -4,6 +4,7 @@ require "fileutils"
 require "rbconfig"
 require "pp"
 require "stringio"
+require "tempfile"
 
 module Uprb
   module RequireReplacer
@@ -56,31 +57,43 @@ module Uprb
 
       private
 
+      def rewind_read_tempfile(file)
+        file.flush
+        file.rewind
+        file.read
+      end
+
       def execute_with_tracker(path)
-        Uprb::RequireTracker.start
-        stdout, stderr = StringIO.new, StringIO.new
-        original_stdout, original_stderr = $stdout, $stderr
+        original_stdout, original_stderr = STDOUT.dup, STDERR.dup
         original_argv = ARGV.dup
         original_program_name = $PROGRAM_NAME
-        $stdout, $stderr = stdout, stderr
+        tmp_stdout = Tempfile.new("uprb-stdout")
+        tmp_stderr = Tempfile.new("uprb-stderr")
         mapping = nil
 
         begin
+          STDOUT.reopen(tmp_stdout)
+          STDERR.reopen(tmp_stderr)
           ARGV.replace([])
           $PROGRAM_NAME = path
+          Uprb::RequireTracker.start
           load path
         rescue SystemExit => e
         rescue StandardError => e
+          stdout_content = rewind_read_tempfile(tmp_stdout)
+          stderr_content = rewind_read_tempfile(tmp_stderr)
           message = ["execution failed: #{e.class}: #{e.message}"]
-          message << "stdout: #{stdout.string}" unless stdout.string.empty?
-          message << "stderr: #{stderr.string}" unless stderr.string.empty?
+          message << "stdout: #{stdout_content}" unless stdout_content.empty?
+          message << "stderr: #{stderr_content}" unless stderr_content.empty?
           raise Uprb::Error, message.join("\n")
         ensure
-          $stdout = original_stdout
-          $stderr = original_stderr
+          mapping = Uprb::RequireTracker.stop
+          STDOUT.reopen(original_stdout)
+          STDERR.reopen(original_stderr)
           ARGV.replace(original_argv)
           $PROGRAM_NAME = original_program_name
-          mapping = Uprb::RequireTracker.stop
+          tmp_stdout.close!
+          tmp_stderr.close!
         end
 
         mapping

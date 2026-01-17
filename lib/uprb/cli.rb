@@ -9,8 +9,8 @@ module Uprb
     USAGE = <<~USAGE.chomp
     Usage:
       uprb pack <src.rb> <dest> [--skip-iseq-cache] [--enable-rubygems]
-      uprb gem install <gem> [--skip-iseq-cache] [--enable-rubygems]
-      uprb gem pack <gem> [--skip-iseq-cache] [--enable-rubygems]
+      uprb gem install <gem> [--skip-iseq-cache] [--enable-rubygems] [--path DIR]
+      uprb gem pack <gem> [--skip-iseq-cache] [--enable-rubygems] [--path DIR]
     USAGE
 
     def self.start(argv = ARGV)
@@ -95,12 +95,16 @@ module Uprb
     def parse_pack_options(argv)
       options = {
         skip_iseq_cache: false,
-        enable_rubygems: false
+        enable_rubygems: false,
+        path: nil,
       }
       parser = OptionParser.new
       parser.on("--skip-iseq-cache") { options[:skip_iseq_cache] = true }
       parser.on("--enable-rubygems") do
         options[:enable_rubygems] = true
+      end
+      parser.on("--path DIR") do |dir|
+        options[:path] = dir
       end
       args = parser.parse(argv)
 
@@ -120,11 +124,14 @@ module Uprb
       raise Uprb::Error, "no executables for gem: #{gem_name}" if executables.empty?
       bindir = spec.bindir
 
+      dest_dir = options[:path] ? File.expand_path(options[:path]) : Gem.bindir
+      FileUtils.mkdir_p(dest_dir)
+
       executables.each do |exe|
         source_path = File.join(spec.full_gem_path, bindir, exe)
         raise Uprb::Error, "executable not found: #{source_path}" unless File.file?(source_path)
 
-        dest_path = File.join(Gem.bindir, exe)
+        dest_path = File.join(dest_dir, exe)
 
         if options[:skip_iseq_cache]
           Uprb::RequireReplacer.pack(

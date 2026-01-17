@@ -33,6 +33,7 @@ Options:
 
 - `--skip-iseq-cache`
 - `--enable-rubygems`
+- `--path DIR`: install packed executables into this directory
 
 Install a gem and pack its executables:
 
@@ -44,6 +45,7 @@ Options:
 
 - `--skip-iseq-cache`
 - `--enable-rubygems`
+- `--path DIR`: install executables into this directory
 
 ## Install
 

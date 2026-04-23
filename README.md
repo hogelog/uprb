@@ -27,6 +27,8 @@ uprb pack path/to/script.rb path/to/output
 Options:
 
 - `-f`, `--force`: overwrite the destination without prompting
+- `-r`, `--require LIB`: pre-require `LIB` at pack time so it is embedded, and re-`require` it before the script runs. Repeatable. Useful when a gem references constants (e.g. `Gem::Version`) that are normally provided by rubygems but whose defining file is standalone-loadable under `--disable-gems` (for `Gem::Version`, `-r rubygems/version`).
+- `--with-rubygems`: shortcut for `--require rubygems`. Embeds the whole rubygems library as ISeq so `Gem::*` constants are available at runtime. The shebang stays `--disable-gems` — rubygems is carried in the payload, not auto-loaded at Ruby boot. Convenient for packing gems that reference `Gem::Version` / `Gem::Requirement` / `Gem::Platform` etc. Trade-off: larger output.
 
 Pack executables from an installed gem:
 
@@ -38,6 +40,8 @@ Options:
 
 - `--path DIR`: install packed executables into this directory
 - `-f`, `--force`: overwrite existing executables without prompting
+- `-r`, `--require LIB`: same as above; repeatable
+- `--with-rubygems`: same as above
 
 Install a gem and pack its executables:
 
@@ -49,6 +53,8 @@ Options:
 
 - `--path DIR`: install executables into this directory
 - `-f`, `--force`: overwrite existing executables without prompting
+- `-r`, `--require LIB`: same as above; repeatable
+- `--with-rubygems`: same as above
 
 By default, `uprb` asks `overwrite? [y/N]` on stderr when the destination
 already exists and proceeds only if you answer `y`/`yes`. When stdin is

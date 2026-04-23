@@ -9,11 +9,11 @@ module Uprb
     class << self
       attr_reader :mapping
 
-      def pack(source_path, dest_path: nil)
+      def pack(source_path, dest_path: nil, requires: [])
         source = File.read(source_path)
-        mapping = execute_with_tracker(source_path)
+        mapping = execute_with_tracker(source_path, requires)
         embedded, external = build_payload(mapping)
-        ruby_source = source_with_require_hook(source)
+        ruby_source = source_with_require_hook(source, requires)
         main_iseq = RubyVM::InstructionSequence.compile(ruby_source, source_path, source_path)
         payload = Marshal.dump({
           embedded: embedded,
@@ -50,7 +50,7 @@ module Uprb
         file.read
       end
 
-      def execute_with_tracker(path)
+      def execute_with_tracker(path, requires = [])
         original_stdout, original_stderr = STDOUT.dup, STDERR.dup
         original_argv = ARGV.dup
         original_program_name = $PROGRAM_NAME
@@ -64,6 +64,7 @@ module Uprb
           ARGV.replace([])
           $PROGRAM_NAME = path
           Uprb::RequireTracker.start
+          requires.each {|lib| require lib }
           load path
         rescue SystemExit => e
         rescue StandardError => e
@@ -86,7 +87,8 @@ module Uprb
         mapping
       end
 
-      def source_with_require_hook(source)
+      def source_with_require_hook(source, requires = [])
+        preload_lines = requires.map {|lib| "require #{lib.inspect}" }.join("\n")
         pre_code = <<~RUBY
         module FixedRequire
           SUFFIXES = #{Uprb::SUFFIXES.inspect}.freeze
@@ -120,6 +122,7 @@ module Uprb
         end
 
         Kernel.prepend(FixedRequire)
+        #{preload_lines}
         RUBY
         pre_code + source
       end

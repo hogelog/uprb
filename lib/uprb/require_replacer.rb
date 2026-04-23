@@ -2,8 +2,6 @@
 
 require "fileutils"
 require "rbconfig"
-require "pp"
-require "stringio"
 require "tempfile"
 
 module Uprb
@@ -14,21 +12,8 @@ module Uprb
       def pack(source_path, dest_path: nil, enable_rubygems: false)
         source = File.read(source_path)
         mapping = execute_with_tracker(source_path)
-        ruby_source = source_with_require_hook(source, mapping)
-        shebang = "#!#{RbConfig.ruby}"
-        shebang += " --disable-gems" unless enable_rubygems
-        program = "#{shebang}\n#{ruby_source}"
-        return program unless dest_path
-
-        File.write(dest_path, program)
-        FileUtils.chmod("+x", dest_path)
-      end
-
-      def pack_iseq(source_path, dest_path: nil, enable_rubygems: false)
-        source = File.read(source_path)
-        mapping = execute_with_tracker(source_path)
-        embedded, external = build_iseq_payload(mapping)
-        ruby_source = source_with_iseq_require_hook(source)
+        embedded, external = build_payload(mapping)
+        ruby_source = source_with_require_hook(source)
         main_iseq = RubyVM::InstructionSequence.compile(ruby_source, source_path, source_path)
         payload = Marshal.dump({
           embedded: embedded,
@@ -102,34 +87,7 @@ module Uprb
         mapping
       end
 
-      def source_with_require_hook(source, mapping)
-        mapping_without_absolute = mapping.reject{|name, path| File.absolute_path?(name) }
-
-        pre_code = <<~RUBY
-        module FixedRequire
-          REQUIRE_MAP = #{ mapping_without_absolute.pretty_inspect.chomp }.freeze
-
-          def require(name)
-            path = REQUIRE_MAP[name]
-            if path
-              $LOADED_FEATURES << name unless $LOADED_FEATURES.include?(name)
-              begin
-                super(path)
-              rescue
-                raise
-              end
-            else
-              super(name)
-            end
-          end
-        end
-
-        Kernel.prepend(FixedRequire)
-        RUBY
-        pre_code + source
-      end
-
-      def source_with_iseq_require_hook(source)
+      def source_with_require_hook(source)
         pre_code = <<~RUBY
         module FixedRequire
           def require(name)
@@ -154,7 +112,7 @@ module Uprb
         pre_code + source
       end
 
-      def build_iseq_payload(mapping)
+      def build_payload(mapping)
         embedded = {}
         external = {}
 

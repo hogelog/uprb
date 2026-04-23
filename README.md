@@ -3,9 +3,10 @@
 uprb is a Ruby script packer.
 
 It builds a single executable from a Ruby script and freezes how it runs.
-The output is meant to be fast to start and deterministic.
-It also aims to make a script easier to use as a single command by fixing
-its runtime library paths at pack time.
+Every `.rb` dependency observed at pack time is compiled into
+`RubyVM::InstructionSequence` binaries and embedded in the output; C
+extensions and other non-`.rb` requires are referenced by their original
+absolute paths. The output is meant to be fast to start and deterministic.
 
 This tool does not produce native binaries. It assumes a Ruby interpreter
 is already installed and runs the packed script with that Ruby.
@@ -20,7 +21,6 @@ uprb pack path/to/script.rb path/to/output
 
 Options:
 
-- `--skip-iseq-cache`: keep plain Ruby output instead of ISeq payload
 - `--enable-rubygems`: do not pass `--disable-gems` to Ruby
 
 Pack executables from an installed gem:
@@ -31,7 +31,6 @@ uprb gem pack GEM_NAME
 
 Options:
 
-- `--skip-iseq-cache`
 - `--enable-rubygems`
 - `--path DIR`: install packed executables into this directory
 
@@ -43,7 +42,6 @@ uprb gem install GEM_NAME
 
 Options:
 
-- `--skip-iseq-cache`
 - `--enable-rubygems`
 - `--path DIR`: install executables into this directory
 

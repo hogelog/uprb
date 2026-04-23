@@ -18,10 +18,8 @@ Packs a Ruby script into a deterministic, fast-starting executable by **freezing
 ## Architecture
 
 - `lib/uprb/require_tracker.rb` — aliases `Kernel#require` / `Kernel#require_relative` and records `name => $LOADED_FEATURES` path on every successful call.
-- `lib/uprb/require_replacer.rb` — `Kernel#load`s the source in-process (stdout/stderr captured to `Tempfile`, `ARGV` cleared, `$PROGRAM_NAME` set), then emits the output in one of two modes:
-  - default (`pack_iseq`): compiles the main script and every required `.rb` into `RubyVM::InstructionSequence` binaries, appends a `Marshal` payload after `__END__`. A prepended `FixedRequire` module serves embedded ISeqs; non-`.rb` requires use a fallback `REQUIRE_MAP`; unknown names defer to `super`.
-  - `--skip-iseq-cache` (`pack`): plain Ruby output with `FixedRequire` + hard-coded `REQUIRE_MAP` prepended to the original source.
-- `lib/uprb/cli.rb`, `exe/uprb` — CLI: `pack`, `gem install`, `gem pack`. Options: `--skip-iseq-cache`, `--enable-rubygems`, `--path DIR` (gem subcommands; default `Gem.bindir`).
+- `lib/uprb/require_replacer.rb` — `Kernel#load`s the source in-process (stdout/stderr captured to `Tempfile`, `ARGV` cleared, `$PROGRAM_NAME` set), then compiles the main script and every required `.rb` into `RubyVM::InstructionSequence` binaries and appends a `Marshal` payload after `__END__`. A prepended `FixedRequire` module serves embedded ISeqs; non-`.rb` requires (C extensions etc.) are resolved via a `REQUIRE_MAP` of original absolute paths; unknown names defer to `super`.
+- `lib/uprb/cli.rb`, `exe/uprb` — CLI: `pack`, `gem install`, `gem pack`. Options: `--enable-rubygems`, `--path DIR` (gem subcommands; default `Gem.bindir`).
 
 The output's shebang is the absolute `RbConfig.ruby` path plus `--disable-gems` unless `--enable-rubygems`.
 
@@ -32,7 +30,7 @@ Any change to the output generator must preserve these — violating any is a bu
 - Absolute `RbConfig.ruby` path in the shebang; never `/usr/bin/env ruby`, never a PATH lookup
 - `--disable-gems` unless `--enable-rubygems` was requested
 - No `-I`, no `$LOAD_PATH` modification, no `RUBYLIB`, no Bundler
-- `.rb` dependencies are embedded as ISeq binaries (default) or looked up via the frozen `REQUIRE_MAP` (`--skip-iseq-cache`); C extensions and other non-`.rb` requires are always referenced by their **original absolute path** via `REQUIRE_MAP` — never copied, never relocated
+- `.rb` dependencies are always embedded as ISeq binaries inside the `Marshal` payload; C extensions and other non-`.rb` requires are always referenced by their **original absolute path** via `REQUIRE_MAP` — never copied, never relocated
 
 ## Non-goals
 
@@ -42,7 +40,7 @@ Declining these is a design choice, not a todo:
 - Surviving Ruby/gem upgrades, graceful degradation
 - Plugin systems or dynamic resolution beyond the frozen mapping
 
-(The default ISeq mode does embed compiled `.rb` sources into the output, so the output is *partially* self-contained for pure-Ruby deps. C extensions and the Ruby interpreter are still referenced by absolute path, so the output remains tied to the machine it was packed on.)
+(Compiled `.rb` sources are embedded in the output, so it is *partially* self-contained for pure-Ruby deps. C extensions and the Ruby interpreter are still referenced by absolute path, so the output remains tied to the machine it was packed on.)
 
 The output is expected to break when the Ruby path moves, C extension paths change, gems are up/downgraded, or new code paths hit unseen `require`s. The only remediation is `uprb pack <src> <dest>`.
 

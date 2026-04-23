@@ -8,9 +8,9 @@ module Uprb
   class CLI
     USAGE = <<~USAGE.chomp
     Usage:
-      uprb pack <src.rb> <dest> [--skip-iseq-cache] [--enable-rubygems]
-      uprb gem install <gem> [--skip-iseq-cache] [--enable-rubygems] [--path DIR]
-      uprb gem pack <gem> [--skip-iseq-cache] [--enable-rubygems] [--path DIR]
+      uprb pack <src.rb> <dest> [--enable-rubygems]
+      uprb gem install <gem> [--enable-rubygems] [--path DIR]
+      uprb gem pack <gem> [--enable-rubygems] [--path DIR]
     USAGE
 
     def self.start(argv = ARGV)
@@ -57,19 +57,11 @@ module Uprb
       raise Uprb::Error, "source not found: #{src}" unless File.file?(src_path)
 
       FileUtils.mkdir_p(File.dirname(dest_path))
-      if options[:skip_iseq_cache]
-        Uprb::RequireReplacer.pack(
-          src_path,
-          dest_path:,
-          enable_rubygems: options[:enable_rubygems]
-        )
-      else
-        Uprb::RequireReplacer.pack_iseq(
-          src_path,
-          dest_path:,
-          enable_rubygems: options[:enable_rubygems]
-        )
-      end
+      Uprb::RequireReplacer.pack(
+        src_path,
+        dest_path:,
+        enable_rubygems: options[:enable_rubygems]
+      )
 
       $stdout.puts("Packed #{dest_path}")
     end
@@ -94,12 +86,10 @@ module Uprb
 
     def parse_pack_options(argv)
       options = {
-        skip_iseq_cache: false,
         enable_rubygems: false,
         path: nil,
       }
       parser = OptionParser.new
-      parser.on("--skip-iseq-cache") { options[:skip_iseq_cache] = true }
       parser.on("--enable-rubygems") do
         options[:enable_rubygems] = true
       end
@@ -133,19 +123,11 @@ module Uprb
 
         dest_path = File.join(dest_dir, exe)
 
-        if options[:skip_iseq_cache]
-          Uprb::RequireReplacer.pack(
-            source_path,
-            dest_path:,
-            enable_rubygems: options[:enable_rubygems]
-          )
-        else
-          Uprb::RequireReplacer.pack_iseq(
-            source_path,
-            dest_path:,
-            enable_rubygems: options[:enable_rubygems]
-          )
-        end
+        Uprb::RequireReplacer.pack(
+          source_path,
+          dest_path:,
+          enable_rubygems: options[:enable_rubygems]
+        )
         $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e

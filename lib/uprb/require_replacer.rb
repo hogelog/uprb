@@ -115,7 +115,7 @@ module Uprb
           # C extensions bypass this hook via rb_require(); pre-mark the path
           # $LOAD_PATH would resolve `name` to so they see it as already loaded.
           def mark_runtime_resolved(name, loaded_path)
-            resolved = $LOAD_PATH.lazy.flat_map { |d| SUFFIXES.map { |s| File.join(d, "\#{name}\#{s}") } }.find { |p| File.file?(p) }
+            resolved = $LOAD_PATH.lazy.flat_map {|d| SUFFIXES.map {|s| File.join(d, "\#{name}\#{s}") } }.find {|p| File.file?(p) }
             return unless resolved && resolved != loaded_path && !$LOADED_FEATURES.include?(resolved)
             $LOADED_FEATURES << resolved
           end

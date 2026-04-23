@@ -24,6 +24,10 @@ Pack a script into a single executable:
 uprb pack path/to/script.rb path/to/output
 ```
 
+Options:
+
+- `-f`, `--force`: overwrite the destination without prompting
+
 Pack executables from an installed gem:
 
 ```bash
@@ -33,6 +37,7 @@ uprb gem pack GEM_NAME
 Options:
 
 - `--path DIR`: install packed executables into this directory
+- `-f`, `--force`: overwrite existing executables without prompting
 
 Install a gem and pack its executables:
 
@@ -43,6 +48,12 @@ uprb gem install GEM_NAME
 Options:
 
 - `--path DIR`: install executables into this directory
+- `-f`, `--force`: overwrite existing executables without prompting
+
+By default, `uprb` asks `overwrite? [y/N]` on stderr when the destination
+already exists and proceeds only if you answer `y`/`yes`. When stdin is
+not a TTY (e.g. CI), `uprb` refuses to overwrite unless `--force` is
+given.
 
 ## Install
 

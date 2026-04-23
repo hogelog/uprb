@@ -47,7 +47,7 @@ module Uprb
     private
 
     def pack_command
-      _, args = parse_pack_options(@argv)
+      options, args = parse_pack_options(@argv)
       src = args.shift or raise Uprb::Error, "missing <src.rb>"
       dest = args.shift or raise Uprb::Error, "missing <dist>"
 
@@ -57,6 +57,8 @@ module Uprb
       raise Uprb::Error, "source not found: #{src}" unless File.file?(src_path)
 
       FileUtils.mkdir_p(File.dirname(dest_path))
+      return unless confirm_overwrite(dest_path, options)
+
       Uprb::RequireReplacer.pack(src_path, dest_path:)
 
       $stdout.puts("Packed #{dest_path}")
@@ -83,16 +85,36 @@ module Uprb
     def parse_pack_options(argv)
       options = {
         path: nil,
+        force: false,
       }
       parser = OptionParser.new
       parser.on("--path DIR") do |dir|
         options[:path] = dir
+      end
+      parser.on("-f", "--force", "overwrite existing destination without prompting") do
+        options[:force] = true
       end
       args = parser.parse(argv)
 
       [options, args]
     rescue OptionParser::ParseError => e
       raise Uprb::Error, e.message
+    end
+
+    def confirm_overwrite(dest_path, options)
+      return true if options[:force]
+      return true unless File.exist?(dest_path)
+
+      unless $stdin.tty?
+        raise Uprb::Error, "destination already exists: #{dest_path} (pass --force to overwrite)"
+      end
+
+      $stderr.print("uprb: #{dest_path} already exists. overwrite? [y/N]: ")
+      answer = $stdin.gets
+      return true if answer && answer.strip.match?(/\A(y|yes)\z/i)
+
+      $stdout.puts("skipped #{dest_path}")
+      false
     end
 
     def install_gem(gem_name)
@@ -114,6 +136,8 @@ module Uprb
         raise Uprb::Error, "executable not found: #{source_path}" unless File.file?(source_path)
 
         dest_path = File.join(dest_dir, exe)
+
+        next unless confirm_overwrite(dest_path, options)
 
         Uprb::RequireReplacer.pack(source_path, dest_path:)
         $stdout.puts("Packed #{dest_path}")

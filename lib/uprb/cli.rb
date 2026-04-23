@@ -8,9 +8,9 @@ module Uprb
   class CLI
     USAGE = <<~USAGE.chomp
     Usage:
-      uprb pack <src.rb> <dest> [--enable-rubygems]
-      uprb gem install <gem> [--enable-rubygems] [--path DIR]
-      uprb gem pack <gem> [--enable-rubygems] [--path DIR]
+      uprb pack <src.rb> <dest>
+      uprb gem install <gem> [--path DIR]
+      uprb gem pack <gem> [--path DIR]
     USAGE
 
     def self.start(argv = ARGV)
@@ -47,7 +47,7 @@ module Uprb
     private
 
     def pack_command
-      options, args = parse_pack_options(@argv)
+      _, args = parse_pack_options(@argv)
       src = args.shift or raise Uprb::Error, "missing <src.rb>"
       dest = args.shift or raise Uprb::Error, "missing <dist>"
 
@@ -57,11 +57,7 @@ module Uprb
       raise Uprb::Error, "source not found: #{src}" unless File.file?(src_path)
 
       FileUtils.mkdir_p(File.dirname(dest_path))
-      Uprb::RequireReplacer.pack(
-        src_path,
-        dest_path:,
-        enable_rubygems: options[:enable_rubygems]
-      )
+      Uprb::RequireReplacer.pack(src_path, dest_path:)
 
       $stdout.puts("Packed #{dest_path}")
     end
@@ -86,13 +82,9 @@ module Uprb
 
     def parse_pack_options(argv)
       options = {
-        enable_rubygems: false,
         path: nil,
       }
       parser = OptionParser.new
-      parser.on("--enable-rubygems") do
-        options[:enable_rubygems] = true
-      end
       parser.on("--path DIR") do |dir|
         options[:path] = dir
       end
@@ -123,11 +115,7 @@ module Uprb
 
         dest_path = File.join(dest_dir, exe)
 
-        Uprb::RequireReplacer.pack(
-          source_path,
-          dest_path:,
-          enable_rubygems: options[:enable_rubygems]
-        )
+        Uprb::RequireReplacer.pack(source_path, dest_path:)
         $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e

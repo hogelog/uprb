@@ -19,16 +19,16 @@ Packs a Ruby script into a deterministic, fast-starting executable by **freezing
 
 - `lib/uprb/require_tracker.rb` — aliases `Kernel#require` / `Kernel#require_relative` and records `name => $LOADED_FEATURES` path on every successful call.
 - `lib/uprb/require_replacer.rb` — `Kernel#load`s the source in-process (stdout/stderr captured to `Tempfile`, `ARGV` cleared, `$PROGRAM_NAME` set), then compiles the main script and every required `.rb` into `RubyVM::InstructionSequence` binaries and appends a `Marshal` payload after `__END__`. A prepended `FixedRequire` module serves embedded ISeqs; non-`.rb` requires (C extensions etc.) are resolved via a `REQUIRE_MAP` of original absolute paths; unknown names defer to `super`.
-- `lib/uprb/cli.rb`, `exe/uprb` — CLI: `pack`, `gem install`, `gem pack`. Options: `--enable-rubygems`, `--path DIR` (gem subcommands; default `Gem.bindir`).
+- `lib/uprb/cli.rb`, `exe/uprb` — CLI: `pack`, `gem install`, `gem pack`. Options: `--path DIR` (gem subcommands; default `Gem.bindir`).
 
-The output's shebang is the absolute `RbConfig.ruby` path plus `--disable-gems` unless `--enable-rubygems`.
+The output's shebang is always the absolute `RbConfig.ruby` path plus `--disable-gems`.
 
 ## Hard constraints on the generated executable
 
 Any change to the output generator must preserve these — violating any is a bug:
 
 - Absolute `RbConfig.ruby` path in the shebang; never `/usr/bin/env ruby`, never a PATH lookup
-- `--disable-gems` unless `--enable-rubygems` was requested
+- Always `--disable-gems` in the shebang; rubygems is not available at runtime
 - No `-I`, no `$LOAD_PATH` modification, no `RUBYLIB`, no Bundler
 - `.rb` dependencies are always embedded as ISeq binaries inside the `Marshal` payload; C extensions and other non-`.rb` requires are always referenced by their **original absolute path** via `REQUIRE_MAP` — never copied, never relocated
 
@@ -46,4 +46,4 @@ The output is expected to break when the Ruby path moves, C extension paths chan
 
 ## Testing notes
 
-`test/test_uprb_cli.rb` shells out to `exe/uprb` via `Open3` and writes artifacts under `./tmp/` (gitignored). `test/fixtures/` is exercised end-to-end (`aws-sdk-core` is a dev dependency for that reason). `examples/rls` and `examples/s3-ls` are sample gems, not part of the suite.
+`test/test_uprb_cli.rb` shells out to `exe/uprb` via `Open3` and writes artifacts under `./tmp/` (gitignored). `aws-sdk-core` is a dev dependency so the suite can verify that a library pulling in rubygems vendored stdlib still packs successfully; the packed output itself is not runnable under `--disable-gems` and is not executed by the test. `examples/rls` and `examples/s3-ls` are sample gems, not part of the suite. `examples/s3-ls` depends on `aws-sdk-s3` and is similarly kept only as a reference — it will not run under `--disable-gems`.

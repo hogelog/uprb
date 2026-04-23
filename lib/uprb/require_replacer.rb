@@ -6,6 +6,8 @@ require "tempfile"
 
 module Uprb
   module RequireReplacer
+    REQUIRE_SUFFIXES = [".rb", ".#{RbConfig::CONFIG['DLEXT']}", ".so", ".o"].uniq.freeze
+
     class << self
       attr_reader :mapping
 
@@ -89,6 +91,8 @@ module Uprb
       def source_with_require_hook(source)
         pre_code = <<~RUBY
         module FixedRequire
+          SUFFIXES = #{REQUIRE_SUFFIXES.inspect}.freeze
+
           def require(name)
             entry = EMBEDDED_ISEQ[name]
             if entry
@@ -96,13 +100,24 @@ module Uprb
               return false if $LOADED_FEATURES.include?(path) || $LOADED_FEATURES.include?(name)
               $LOADED_FEATURES << path
               $LOADED_FEATURES << name unless $LOADED_FEATURES.include?(name)
+              mark_runtime_resolved(name, path)
               RubyVM::InstructionSequence.load_from_binary(binary).eval
               true
             elsif (path = REQUIRE_MAP[name])
-              super(path)
+              result = super(path)
+              mark_runtime_resolved(name, path) if result
+              result
             else
               super(name)
             end
+          end
+
+          # C extensions bypass this hook via rb_require(); pre-mark the path
+          # $LOAD_PATH would resolve `name` to so they see it as already loaded.
+          def mark_runtime_resolved(name, loaded_path)
+            resolved = $LOAD_PATH.lazy.flat_map { |d| SUFFIXES.map { |s| File.join(d, "\#{name}\#{s}") } }.find { |p| File.file?(p) }
+            return unless resolved && resolved != loaded_path && !$LOADED_FEATURES.include?(resolved)
+            $LOADED_FEATURES << resolved
           end
         end
 

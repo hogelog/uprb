@@ -42,4 +42,34 @@ class TestUprbRequireTracker < Minitest::Test
     relative_path = fixture_path("foo/bar")
     assert "#{relative_path}.rb" == Uprb::RequireTracker.mapping[relative_path]
   end
+
+  def test_records_path_added_by_this_require_not_preexisting_match
+    real_path = fixture_path("tracker_preload.rb")
+    polluting_path = "/nonexistent/preloaded/tracker_preload.rb"
+    $LOADED_FEATURES << polluting_path
+    $LOAD_PATH.unshift(fixture_path(""))
+    begin
+      assert require("tracker_preload")
+      assert_equal real_path, Uprb::RequireTracker.mapping["tracker_preload"]
+    ensure
+      $LOAD_PATH.delete(fixture_path(""))
+      $LOADED_FEATURES.delete(polluting_path)
+      $LOADED_FEATURES.delete(real_path)
+    end
+  end
+
+  def test_records_parent_path_when_child_shares_basename
+    parent = fixture_path("tracker_collide.rb")
+    child = fixture_path("tracker_inner/tracker_collide.rb")
+    $LOAD_PATH.unshift(fixture_path(""))
+    begin
+      assert require("tracker_collide")
+      assert_equal parent, Uprb::RequireTracker.mapping["tracker_collide"]
+      assert_equal child, Uprb::RequireTracker.mapping["tracker_inner/tracker_collide"]
+    ensure
+      $LOAD_PATH.delete(fixture_path(""))
+      $LOADED_FEATURES.delete(parent)
+      $LOADED_FEATURES.delete(child)
+    end
+  end
 end

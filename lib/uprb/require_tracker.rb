@@ -18,10 +18,10 @@ module Uprb
         return recorded
       end
 
-      def record_require(name)
+      def record_require(name, features)
         return if !@mapping || @mapping[name]
 
-        path = find_loaded_feature(name)
+        path = find_loaded_feature(name, features)
         @mapping[name] = path if path
       end
 
@@ -40,16 +40,20 @@ module Uprb
           alias_method :uprb_original_require_relative, :require_relative
 
           def require(name)
+            before_size = $LOADED_FEATURES.size
             required = uprb_original_require(name)
-            Uprb::RequireTracker.record_require(name)
+            features = required ? $LOADED_FEATURES[before_size..] : $LOADED_FEATURES
+            Uprb::RequireTracker.record_require(name, features)
             required
           end
 
           def require_relative(path)
             caller_path = caller_locations(1, 1).first.path
             absolute_path = File.expand_path(path, File.dirname(caller_path))
+            before_size = $LOADED_FEATURES.size
             required = uprb_original_require(absolute_path)
-            Uprb::RequireTracker.record_require(absolute_path)
+            features = required ? $LOADED_FEATURES[before_size..] : $LOADED_FEATURES
+            Uprb::RequireTracker.record_require(absolute_path, features)
             required
           end
 
@@ -60,7 +64,7 @@ module Uprb
         @require_hook_installed = true
       end
 
-      def find_loaded_feature(name)
+      def find_loaded_feature(name, entries)
         extname = File.extname(name)
         if SO_EXTS.include?(extname)
           target_name = name.delete_suffix(extname)
@@ -70,8 +74,10 @@ module Uprb
           suffixes = Gem.suffixes
         end
         suffixes.each do |suffix|
-          $LOADED_FEATURES.find do |f|
-            return f if /(?:\A|#{File::SEPARATOR})#{target_name}#{suffix}\z/.match?(f)
+          pattern = /(?:\A|#{File::SEPARATOR})#{target_name}#{suffix}\z/
+          # Ruby appends the parent after its nested children; search from the tail to hit it first.
+          entries.reverse_each do |f|
+            return f if pattern.match?(f)
           end
         end
 

@@ -6,8 +6,6 @@ require "tempfile"
 
 module Uprb
   module RequireReplacer
-    REQUIRE_SUFFIXES = [".rb", ".#{RbConfig::CONFIG['DLEXT']}", ".so", ".o"].uniq.freeze
-
     class << self
       attr_reader :mapping
 
@@ -91,7 +89,7 @@ module Uprb
       def source_with_require_hook(source)
         pre_code = <<~RUBY
         module FixedRequire
-          SUFFIXES = #{REQUIRE_SUFFIXES.inspect}.freeze
+          SUFFIXES = #{Uprb::SUFFIXES.inspect}.freeze
 
           def require(name)
             entry = EMBEDDED_ISEQ[name]

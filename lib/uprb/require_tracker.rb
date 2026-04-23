@@ -2,8 +2,6 @@
 
 module Uprb
   module RequireTracker
-    SO_EXTS = %w[.so .o]
-
     class << self
       attr_reader :mapping
 
@@ -66,12 +64,12 @@ module Uprb
 
       def find_loaded_feature(name, entries)
         extname = File.extname(name)
-        if SO_EXTS.include?(extname)
+        if Uprb::SUFFIXES.include?(extname)
           target_name = name.delete_suffix(extname)
-          suffixes = Gem.dynamic_library_suffixes
+          suffixes = Uprb::DL_SUFFIXES.include?(extname) ? Uprb::DL_SUFFIXES : Uprb::SUFFIXES
         else
           target_name = name
-          suffixes = Gem.suffixes
+          suffixes = Uprb::SUFFIXES
         end
         suffixes.each do |suffix|
           pattern = /(?:\A|#{File::SEPARATOR})#{target_name}#{suffix}\z/

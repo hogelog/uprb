@@ -27,6 +27,22 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
-          bundler-cache: true
+      - name: Compute weekly cache key
+        id: cache-key
+        run: echo "week=$(date -u +%Y%V)" >> "$GITHUB_OUTPUT"
+      - name: Cache Gemfile.lock and bundler
+        uses: actions/cache@v4
+        with:
+          path: |
+            vendor/bundle
+            Gemfile.lock
+          key: bundler-${{ runner.os }}-ruby${{ matrix.ruby }}-${{ hashFiles('uprb.gemspec', 'Gemfile') }}-week-${{ steps.cache-key.outputs.week }}
+          restore-keys: |
+            bundler-${{ runner.os }}-ruby${{ matrix.ruby }}-${{ hashFiles('uprb.gemspec', 'Gemfile') }}-
+            bundler-${{ runner.os }}-ruby${{ matrix.ruby }}-
+      - name: Install dependencies
+        run: |
+          bundle config set --local path vendor/bundle
+          bundle install --jobs 4
       - name: Run the default task
         run: bundle exec rake

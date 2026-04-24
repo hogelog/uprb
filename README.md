@@ -15,14 +15,21 @@ gem install uprb
 
 ## Usage
 
+Pack a script:
+
 ```bash
-# Pack a script
 uprb pack path/to/script.rb path/to/output
+```
 
-# Pack an installed gem's executables
+Pack executables from an installed gem:
+
+```bash
 uprb gem pack GEM_NAME
+```
 
-# Install a gem and pack its executables
+Install a gem and pack its executables:
+
+```bash
 uprb gem install GEM_NAME
 ```
 
@@ -35,5 +42,3 @@ uprb gem install GEM_NAME
 - `--skip-disable-gems` — drop `--disable-gems` from the shebang (vendoring mode; gives up fast startup)
 - `--skip-ruby-path-replace` — keep the source shebang's ruby invocation instead of rewriting to an absolute path
 - `--path DIR` — destination directory (`gem` subcommands only)
-
-If the source has no shebang, the output has none either; invoke via `ruby packed_file`.

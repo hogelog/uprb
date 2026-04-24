@@ -1,5 +1,9 @@
 # uprb
 
+[![Test](https://github.com/hogelog/uprb/actions/workflows/main.yml/badge.svg)](https://github.com/hogelog/uprb/actions/workflows/main.yml)
+[![Gem Version](https://badge.fury.io/rb/uprb.svg)](http://badge.fury.io/rb/uprb)
+
+
 uprb is a Ruby script packer. It builds a single executable from a Ruby
 script with a fast, deterministic startup.
 

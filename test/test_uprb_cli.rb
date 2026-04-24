@@ -66,6 +66,34 @@ class TestUprbCLI < Minitest::Test
     assert_includes stderr, '["one", "two"]'
   end
 
+  def test_pack_with_skip_disable_gems_drops_flag_from_shebang
+    dest = File.join("tmp", "skip_disable_gems")
+
+    stdout, stderr, status = run_cli(
+      "pack", fixture_path("require_etc_so.rb"), dest, "--force", "--skip-disable-gems"
+    )
+    assert status.success?, stderr
+    assert_includes stdout, dest
+
+    shebang = File.open(dest, &:readline)
+    assert_includes shebang, RbConfig.ruby
+    refute_includes shebang, "--disable-gems"
+
+    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    assert run_status.success?, out
+    assert_includes out, "Etc loaded: true"
+  end
+
+  def test_pack_default_keeps_disable_gems_in_shebang
+    dest = File.join("tmp", "default_disable_gems")
+
+    _stdout, stderr, status = run_cli("pack", fixture_path("require_etc_so.rb"), dest, "--force")
+    assert status.success?, stderr
+
+    shebang = File.open(dest, &:readline)
+    assert_includes shebang, "--disable-gems"
+  end
+
   def test_pack_aws_sdk_core_executable
     dest = File.join("tmp", "aws-sdk-core")
 

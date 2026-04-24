@@ -9,7 +9,7 @@ module Uprb
     class << self
       attr_reader :mapping
 
-      def pack(source_path, dest_path: nil, requires: [], dynamic: false, script_argv: [])
+      def pack(source_path, dest_path: nil, requires: [], dynamic: false, script_argv: [], skip_disable_gems: false)
         source = File.read(source_path)
         mapping = build_mapping(source_path, requires, dynamic, script_argv)
         embedded, external = build_payload(mapping)
@@ -21,7 +21,7 @@ module Uprb
           main: main_iseq.to_binary
         })
 
-        shebang = "#!#{RbConfig.ruby} --disable-gems"
+        shebang = skip_disable_gems ? "#!#{RbConfig.ruby}" : "#!#{RbConfig.ruby} --disable-gems"
         wrapper = <<~RUBY
            #{shebang}
            DATA.binmode

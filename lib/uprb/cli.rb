@@ -59,7 +59,7 @@ module Uprb
       FileUtils.mkdir_p(File.dirname(dest_path))
       return unless confirm_overwrite(dest_path, options)
 
-      Uprb::RequireReplacer.pack(src_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv])
+      Uprb::RequireReplacer.pack(src_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems])
 
       $stdout.puts("Packed #{dest_path}")
     end
@@ -96,6 +96,7 @@ module Uprb
         requires: [],
         dynamic: false,
         script_argv: script_argv,
+        skip_disable_gems: false,
       }
       parser = OptionParser.new
       parser.on("--path DIR") do |dir|
@@ -112,6 +113,9 @@ module Uprb
       end
       parser.on("--dynamic", "execute the entry script at pack time to observe runtime-only requires") do
         options[:dynamic] = true
+      end
+      parser.on("--skip-disable-gems", "drop --disable-gems from the shebang (vendoring only; trades fast startup for normal Ruby startup)") do
+        options[:skip_disable_gems] = true
       end
       args = parser.parse(argv)
 
@@ -158,7 +162,7 @@ module Uprb
 
         next unless confirm_overwrite(dest_path, options)
 
-        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv])
+        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems])
         $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e

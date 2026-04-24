@@ -13,6 +13,12 @@ Gems that depend on rubygems at load time will not work as-is — use
 `--skip-disable-gems` to drop the flag entirely (vendoring only; gives
 up the fast-startup headline).
 
+## Install
+
+```bash
+gem install uprb
+```
+
 ## Usage
 
 Pack a script into a single executable:
@@ -51,9 +57,3 @@ Both `gem` subcommands accept `--path DIR` (destination directory),
 By default, `uprb` asks `overwrite? [y/N]` on stderr when the
 destination already exists. When stdin is not a TTY (e.g. CI), `uprb`
 refuses to overwrite unless `--force` is given.
-
-## Install
-
-```bash
-gem install uprb
-```

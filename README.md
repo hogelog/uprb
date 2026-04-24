@@ -57,7 +57,3 @@ uprb gem install GEM_NAME
 Both `gem` subcommands accept `--path DIR` (destination directory),
 `-f`/`--force`, `-r`/`--require LIB`, `--with-rubygems`, `--dynamic`,
 `--skip-disable-gems`, and `--skip-ruby-path-replace`.
-
-By default, `uprb` asks `overwrite? [y/N]` on stderr when the
-destination already exists. When stdin is not a TTY (e.g. CI), `uprb`
-refuses to overwrite unless `--force` is given.

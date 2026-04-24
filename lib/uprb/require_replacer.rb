@@ -22,8 +22,7 @@ module Uprb
         })
 
         shebang = resolve_shebang(source, skip_ruby_path_replace: skip_ruby_path_replace, skip_disable_gems: skip_disable_gems)
-        wrapper = <<~RUBY
-          #{shebang}
+        body = <<~RUBY
           DATA.binmode
           data = Marshal.load(DATA)
 
@@ -35,26 +34,25 @@ module Uprb
           __END__
         RUBY
 
-        program = wrapper + payload
-        return program unless dest_path
-
-        File.write(dest_path, program)
-        FileUtils.chmod("+x", dest_path)
+        if shebang
+          program = "#{shebang}\n#{body}#{payload}"
+          return program unless dest_path
+          File.write(dest_path, program)
+          FileUtils.chmod("+x", dest_path)
+        else
+          program = body + payload
+          return program unless dest_path
+          File.write(dest_path, program)
+        end
       end
 
       private
 
       def resolve_shebang(source, skip_ruby_path_replace:, skip_disable_gems:)
-        if skip_ruby_path_replace
-          first_line = source.lines.first&.chomp
-          unless first_line&.start_with?("#!")
-            raise Uprb::Error, "source has no shebang; --skip-ruby-path-replace requires one to preserve"
-          end
-          ruby_command = first_line[2..]
-        else
-          ruby_command = RbConfig.ruby
-        end
+        first_line = source.lines.first&.chomp
+        return nil unless first_line&.start_with?("#!")
 
+        ruby_command = skip_ruby_path_replace ? first_line[2..] : RbConfig.ruby
         skip_disable_gems ? "#!#{ruby_command}" : "#!#{ruby_command} --disable-gems"
       end
 

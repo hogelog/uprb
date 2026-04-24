@@ -1,0 +1,1 @@
+puts "no shebang: ok"

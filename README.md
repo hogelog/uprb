@@ -28,7 +28,9 @@ Options:
 - `--with-rubygems`: shortcut for `--require rubygems`. Needed when the script references `Gem::Version` / `Gem::Requirement` / `Gem::Platform` etc. Trade-off: larger output.
 - `--dynamic`: execute the entry script at pack time so runtime-only requires (e.g. interpolated `require`s) are captured. The entry actually runs, which is a problem for scripts that do I/O on startup — arguments after `--` are forwarded as `ARGV` so you can steer into a safe path (e.g. `-- --help`).
 - `--skip-disable-gems`: drop `--disable-gems` from the shebang. The output then behaves like a normal Ruby invocation — rubygems, `RUBYOPT`, and Bundler's Gemfile autodetection all run as usual. Use this when you want single-file vendoring of `.rb` dependencies and don't care about startup latency.
-- `--skip-ruby-path-replace`: keep the source file's shebang ruby invocation (e.g. `/usr/bin/env ruby`) instead of rewriting it to an absolute `RbConfig.ruby` path. `--disable-gems` is still appended (unless `--skip-disable-gems` is also passed), so this is orthogonal to `--skip-disable-gems`. Use for vendoring when you want a portable Ruby reference in the output. The source must start with a `#!` line.
+- `--skip-ruby-path-replace`: keep the source file's shebang ruby invocation (e.g. `/usr/bin/env ruby`) instead of rewriting it to an absolute `RbConfig.ruby` path. `--disable-gems` is still appended (unless `--skip-disable-gems` is also passed), so this is orthogonal to `--skip-disable-gems`. Use for vendoring when you want a portable Ruby reference in the output.
+
+If the source has no shebang, the packed output also has no shebang and is not chmod'd executable — invoke via `ruby packed_file`. This applies regardless of flags.
 
 Pack executables from an installed gem:
 

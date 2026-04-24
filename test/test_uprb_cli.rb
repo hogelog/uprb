@@ -115,14 +115,20 @@ class TestUprbCLI < Minitest::Test
     assert_includes out, "Etc loaded: true"
   end
 
-  def test_pack_with_skip_ruby_path_replace_errors_without_source_shebang
-    dest = File.join("tmp", "skip_ruby_path_replace_no_shebang")
+  def test_pack_shebangless_source_produces_non_executable_output
+    dest = File.join("tmp", "no_shebang")
 
-    _stdout, stderr, status = run_cli(
-      "pack", fixture_path("require_etc_so.rb"), dest, "--force", "--skip-ruby-path-replace"
-    )
-    refute status.success?
-    assert_includes stderr, "source has no shebang"
+    stdout, stderr, status = run_cli("pack", fixture_path("no_shebang.rb"), dest, "--force")
+    assert status.success?, stderr
+    assert_includes stdout, dest
+
+    first_line = File.open(dest, &:readline)
+    refute first_line.start_with?("#!"), "expected no shebang, got: #{first_line.inspect}"
+    refute File.executable?(dest), "expected non-executable output when source has no shebang"
+
+    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(RbConfig.ruby, dest) }
+    assert run_status.success?, out
+    assert_includes out, "no shebang: ok"
   end
 
   def test_pack_default_keeps_disable_gems_in_shebang

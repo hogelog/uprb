@@ -1,6 +1,6 @@
 # uprb
 
-[![Test](https://github.com/hogelog/uprb/actions/workflows/main.yml/badge.svg)](https://github.com/hogelog/uprb/actions/workflows/main.yml)
+[![Test](https://github.com/hogelog/uprb/actions/workflows/test.yml/badge.svg)](https://github.com/hogelog/uprb/actions/workflows/test.yml)
 [![Gem Version](https://badge.fury.io/rb/uprb.svg)](http://badge.fury.io/rb/uprb)
 
 

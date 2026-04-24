@@ -3,10 +3,20 @@
 uprb is a Ruby script packer.
 
 It builds a single executable from a Ruby script and freezes how it runs.
-Every `.rb` dependency observed at pack time is compiled into
+Every `.rb` dependency discovered at pack time is compiled into
 `RubyVM::InstructionSequence` binaries and embedded in the output; C
 extensions and other non-`.rb` requires are referenced by their original
 absolute paths. The output is meant to be fast to start and deterministic.
+
+By default, `uprb` skips executing the entry script: it parses the
+entry with Prism, loads the literal `require` / `require_relative` /
+`autoload` targets it finds, records whatever those libraries pull in
+transitively, and augments that with a static walk of every reachable
+`.rb` file. The entry's other top-level code (e.g. `App.start(ARGV)`)
+never runs. Pass `--dynamic` to instead execute the entry at pack time,
+which catches runtime-only requires (e.g. interpolated `require`s that
+only fire when a specific code path is exercised) at the cost of actually
+running the script.
 
 The packed executable always starts Ruby with `--disable-gems`, so
 rubygems is not available at runtime. Scripts that depend on gems which
@@ -29,6 +39,7 @@ Options:
 - `-f`, `--force`: overwrite the destination without prompting
 - `-r`, `--require LIB`: pre-require `LIB` at pack time so it is embedded, and re-`require` it before the script runs. Repeatable. Useful when a gem references constants (e.g. `Gem::Version`) that are normally provided by rubygems but whose defining file is standalone-loadable under `--disable-gems` (for `Gem::Version`, `-r rubygems/version`).
 - `--with-rubygems`: shortcut for `--require rubygems`. Embeds the whole rubygems library as ISeq so `Gem::*` constants are available at runtime. The shebang stays `--disable-gems` — rubygems is carried in the payload, not auto-loaded at Ruby boot. Convenient for packing gems that reference `Gem::Version` / `Gem::Requirement` / `Gem::Platform` etc. Trade-off: larger output.
+- `--dynamic`: execute the entry script at pack time instead of only parsing it. The runtime require tracker observes every `require` that actually fires, catching interpolated-string requires and other dynamic resolution the default mode misses — but the entry's top-level code *runs*, which is a problem for CLI scripts that do I/O or hit the network on startup.
 
 Pack executables from an installed gem:
 
@@ -42,6 +53,7 @@ Options:
 - `-f`, `--force`: overwrite existing executables without prompting
 - `-r`, `--require LIB`: same as above; repeatable
 - `--with-rubygems`: same as above
+- `--dynamic`: same as above
 
 Install a gem and pack its executables:
 
@@ -55,6 +67,7 @@ Options:
 - `-f`, `--force`: overwrite existing executables without prompting
 - `-r`, `--require LIB`: same as above; repeatable
 - `--with-rubygems`: same as above
+- `--dynamic`: same as above
 
 By default, `uprb` asks `overwrite? [y/N]` on stderr when the destination
 already exists and proceeds only if you answer `y`/`yes`. When stdin is

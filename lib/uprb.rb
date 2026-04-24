@@ -11,4 +11,5 @@ end
 
 require_relative "uprb/version"
 require_relative "uprb/require_tracker"
+require_relative "uprb/static_require_tracker"
 require_relative "uprb/require_replacer"

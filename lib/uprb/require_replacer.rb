@@ -9,9 +9,9 @@ module Uprb
     class << self
       attr_reader :mapping
 
-      def pack(source_path, dest_path: nil, requires: [])
+      def pack(source_path, dest_path: nil, requires: [], dynamic: false)
         source = File.read(source_path)
-        mapping = execute_with_tracker(source_path, requires)
+        mapping = build_mapping(source_path, requires, dynamic)
         embedded, external = build_payload(mapping)
         ruby_source = source_with_require_hook(source, requires)
         main_iseq = RubyVM::InstructionSequence.compile(ruby_source, source_path, source_path)
@@ -43,6 +43,17 @@ module Uprb
       end
 
       private
+
+      # `--dynamic` alone would miss literal requires in branches the
+      # execution didn't take (rescued `LoadError` alternates, unused
+      # autoloads, feature-flag branches); the static walk fills those in.
+      def build_mapping(source_path, requires, dynamic)
+        return Uprb::StaticRequireTracker.trace(source_path, requires: requires) unless dynamic
+
+        dynamic_map = execute_with_tracker(source_path, requires)
+        static_map = Uprb::StaticRequireTracker::StaticWalker.new.walk(File.expand_path(source_path))
+        static_map.merge(dynamic_map)
+      end
 
       def rewind_read_tempfile(file)
         file.flush

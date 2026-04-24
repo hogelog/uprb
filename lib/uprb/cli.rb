@@ -59,7 +59,7 @@ module Uprb
       FileUtils.mkdir_p(File.dirname(dest_path))
       return unless confirm_overwrite(dest_path, options)
 
-      Uprb::RequireReplacer.pack(src_path, dest_path:, requires: options[:requires])
+      Uprb::RequireReplacer.pack(src_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic])
 
       $stdout.puts("Packed #{dest_path}")
     end
@@ -87,6 +87,7 @@ module Uprb
         path: nil,
         force: false,
         requires: [],
+        dynamic: false,
       }
       parser = OptionParser.new
       parser.on("--path DIR") do |dir|
@@ -100,6 +101,9 @@ module Uprb
       end
       parser.on("--with-rubygems", "shortcut for --require rubygems") do
         options[:requires] << "rubygems"
+      end
+      parser.on("--dynamic", "execute the entry script at pack time to observe runtime-only requires") do
+        options[:dynamic] = true
       end
       args = parser.parse(argv)
 
@@ -146,7 +150,7 @@ module Uprb
 
         next unless confirm_overwrite(dest_path, options)
 
-        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires])
+        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic])
         $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e

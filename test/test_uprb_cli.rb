@@ -41,6 +41,20 @@ class TestUprbCLI < Minitest::Test
     assert_includes out, "ok"
   end
 
+  def test_pack_with_dynamic_option_builds_executable
+    dest = File.join("tmp", "require_time_dynamic")
+
+    stdout, stderr, status = run_cli(
+      "pack", fixture_path("require_time.rb"), dest, "--force", "--dynamic"
+    )
+    assert status.success?, stderr
+    assert_includes stdout, dest
+
+    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    assert run_status.success?, out
+    assert_includes out, "Time parsed: 2024-01-02 03:04:05 UTC"
+  end
+
   def test_pack_aws_sdk_core_executable
     dest = File.join("tmp", "aws-sdk-core")
 

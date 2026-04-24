@@ -9,9 +9,9 @@ module Uprb
     class << self
       attr_reader :mapping
 
-      def pack(source_path, dest_path: nil, requires: [], dynamic: false)
+      def pack(source_path, dest_path: nil, requires: [], dynamic: false, script_argv: [])
         source = File.read(source_path)
-        mapping = build_mapping(source_path, requires, dynamic)
+        mapping = build_mapping(source_path, requires, dynamic, script_argv)
         embedded, external = build_payload(mapping)
         ruby_source = source_with_require_hook(source, requires)
         main_iseq = RubyVM::InstructionSequence.compile(ruby_source, source_path, source_path)
@@ -47,10 +47,10 @@ module Uprb
       # `--dynamic` alone would miss literal requires in branches the
       # execution didn't take (rescued `LoadError` alternates, unused
       # autoloads, feature-flag branches); the static walk fills those in.
-      def build_mapping(source_path, requires, dynamic)
+      def build_mapping(source_path, requires, dynamic, script_argv)
         return Uprb::StaticRequireTracker.trace(source_path, requires: requires) unless dynamic
 
-        dynamic_map = execute_with_tracker(source_path, requires)
+        dynamic_map = execute_with_tracker(source_path, requires, script_argv)
         static_map = Uprb::StaticRequireTracker::StaticWalker.new.walk(File.expand_path(source_path))
         static_map.merge(dynamic_map)
       end
@@ -61,7 +61,7 @@ module Uprb
         file.read
       end
 
-      def execute_with_tracker(path, requires = [])
+      def execute_with_tracker(path, requires = [], script_argv = [])
         original_stdout, original_stderr = STDOUT.dup, STDERR.dup
         original_argv = ARGV.dup
         original_program_name = $PROGRAM_NAME
@@ -72,7 +72,7 @@ module Uprb
         begin
           STDOUT.reopen(tmp_stdout)
           STDERR.reopen(tmp_stderr)
-          ARGV.replace([])
+          ARGV.replace(script_argv)
           $PROGRAM_NAME = path
           Uprb::RequireTracker.start
           requires.each {|lib| require lib }

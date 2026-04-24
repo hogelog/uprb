@@ -39,7 +39,7 @@ Options:
 - `-f`, `--force`: overwrite the destination without prompting
 - `-r`, `--require LIB`: pre-require `LIB` at pack time so it is embedded, and re-`require` it before the script runs. Repeatable. Useful when a gem references constants (e.g. `Gem::Version`) that are normally provided by rubygems but whose defining file is standalone-loadable under `--disable-gems` (for `Gem::Version`, `-r rubygems/version`).
 - `--with-rubygems`: shortcut for `--require rubygems`. Embeds the whole rubygems library as ISeq so `Gem::*` constants are available at runtime. The shebang stays `--disable-gems` — rubygems is carried in the payload, not auto-loaded at Ruby boot. Convenient for packing gems that reference `Gem::Version` / `Gem::Requirement` / `Gem::Platform` etc. Trade-off: larger output.
-- `--dynamic`: execute the entry script at pack time instead of only parsing it. The runtime require tracker observes every `require` that actually fires, catching interpolated-string requires and other dynamic resolution the default mode misses — but the entry's top-level code *runs*, which is a problem for CLI scripts that do I/O or hit the network on startup.
+- `--dynamic`: execute the entry script at pack time instead of only parsing it. The runtime require tracker observes every `require` that actually fires, catching interpolated-string requires and other dynamic resolution the default mode misses — but the entry's top-level code *runs*, which is a problem for CLI scripts that do I/O or hit the network on startup. Arguments after `--` are passed as `ARGV` to the pack-time run, so you can steer the CLI into a safe code path (e.g. `-- --help` or `-- --dry-run`).
 
 Pack executables from an installed gem:
 

@@ -59,7 +59,7 @@ module Uprb
       FileUtils.mkdir_p(File.dirname(dest_path))
       return unless confirm_overwrite(dest_path, options)
 
-      Uprb::RequireReplacer.pack(src_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic])
+      Uprb::RequireReplacer.pack(src_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv])
 
       $stdout.puts("Packed #{dest_path}")
     end
@@ -83,11 +83,19 @@ module Uprb
     end
 
     def parse_pack_options(argv)
+      if (separator_index = argv.index("--"))
+        script_argv = argv[(separator_index + 1)..]
+        argv = argv[0...separator_index]
+      else
+        script_argv = []
+      end
+
       options = {
         path: nil,
         force: false,
         requires: [],
         dynamic: false,
+        script_argv: script_argv,
       }
       parser = OptionParser.new
       parser.on("--path DIR") do |dir|
@@ -150,7 +158,7 @@ module Uprb
 
         next unless confirm_overwrite(dest_path, options)
 
-        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic])
+        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv])
         $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e

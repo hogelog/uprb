@@ -55,6 +55,17 @@ class TestUprbCLI < Minitest::Test
     assert_includes out, "Time parsed: 2024-01-02 03:04:05 UTC"
   end
 
+  def test_pack_with_dynamic_forwards_trailing_args_to_argv
+    dest = File.join("tmp", "echo_argv")
+
+    _stdout, stderr, status = run_cli(
+      "pack", fixture_path("echo_argv.rb"), dest, "--force", "--dynamic",
+      "--", "one", "two",
+    )
+    refute status.success?
+    assert_includes stderr, '["one", "two"]'
+  end
+
   def test_pack_aws_sdk_core_executable
     dest = File.join("tmp", "aws-sdk-core")
 
@@ -74,7 +85,7 @@ class TestUprbCLI < Minitest::Test
       Open3.capture3(
         RbConfig.ruby,
         File.expand_path("../exe/uprb", __dir__),
-        *args
+        *args,
       )
     end
   end

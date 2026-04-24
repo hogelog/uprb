@@ -10,6 +10,7 @@ module S3
       USAGE = <<~USAGE.chomp
       Usage:
         s3-ls s3://bucket[/prefix]
+        s3-ls -h | --help
       USAGE
 
       def self.start(argv)
@@ -21,6 +22,11 @@ module S3
       end
 
       def start
+        if @argv.first == "-h" || @argv.first == "--help"
+          $stdout.puts USAGE
+          return
+        end
+
         client = Aws::S3::Client.new
 
         if @argv.empty?

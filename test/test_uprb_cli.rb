@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "bundler"
 require "open3"
 
 class TestUprbCLI < Minitest::Test
@@ -22,7 +21,7 @@ class TestUprbCLI < Minitest::Test
     assert status.success?, stderr
     assert_includes stdout, dest
 
-    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    out, run_status = Open3.capture2e(dest)
     assert run_status.success?, out
     assert_includes out, "1.2.3"
   end
@@ -36,7 +35,7 @@ class TestUprbCLI < Minitest::Test
     assert status.success?, stderr
     assert_includes stdout, dest
 
-    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    out, run_status = Open3.capture2e(dest)
     assert run_status.success?, out
     assert_includes out, "ok"
   end
@@ -50,7 +49,7 @@ class TestUprbCLI < Minitest::Test
     assert status.success?, stderr
     assert_includes stdout, dest
 
-    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    out, run_status = Open3.capture2e(dest)
     assert run_status.success?, out
     assert_includes out, "Time parsed: 2024-01-02 03:04:05 UTC"
   end
@@ -79,7 +78,7 @@ class TestUprbCLI < Minitest::Test
     assert_includes shebang, RbConfig.ruby
     refute_includes shebang, "--disable-gems"
 
-    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    out, run_status = Open3.capture2e(dest)
     assert run_status.success?, out
     assert_includes out, "Etc loaded: true"
   end
@@ -110,7 +109,7 @@ class TestUprbCLI < Minitest::Test
     shebang = File.open(dest, &:readline).chomp
     assert_equal "#!/usr/bin/env ruby", shebang
 
-    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    out, run_status = Open3.capture2e(dest)
     assert run_status.success?, out
     assert_includes out, "Etc loaded: true"
   end
@@ -126,7 +125,7 @@ class TestUprbCLI < Minitest::Test
     refute first_line.start_with?("#!"), "expected no shebang, got: #{first_line.inspect}"
     refute File.executable?(dest), "expected non-executable output when source has no shebang"
 
-    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(RbConfig.ruby, dest) }
+    out, run_status = Open3.capture2e(RbConfig.ruby, dest)
     assert run_status.success?, out
     assert_includes out, "no shebang: ok"
   end
@@ -148,7 +147,7 @@ class TestUprbCLI < Minitest::Test
     assert status.success?, stderr
     assert_includes stdout, dest
 
-    out, status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    out, status = Open3.capture2e(dest)
     assert status.success?, out
     assert_includes out, "Aws"
   end
@@ -156,12 +155,10 @@ class TestUprbCLI < Minitest::Test
   private
 
   def run_cli(*args)
-    Bundler.with_unbundled_env do
-      Open3.capture3(
-        RbConfig.ruby,
-        File.expand_path("../exe/uprb", __dir__),
-        *args,
-      )
-    end
+    Open3.capture3(
+      RbConfig.ruby,
+      File.expand_path("../exe/uprb", __dir__),
+      *args,
+    )
   end
 end

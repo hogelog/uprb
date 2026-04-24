@@ -22,13 +22,18 @@ Packs a Ruby script into a deterministic, fast-starting executable by **freezing
 - `lib/uprb/require_replacer.rb` — `pack` builds the mapping via `build_mapping` (default: `StaticRequireTracker.trace`; `--dynamic`: `execute_with_tracker` + `StaticWalker` as a second pass so the runtime-only captures are augmented with literal/autoload paths not exercised by the execution). Then compiles the main script and every `.rb` entry into `RubyVM::InstructionSequence` binaries and appends a `Marshal` payload after `__END__`. A prepended `FixedRequire` module serves embedded ISeqs; non-`.rb` requires (C extensions etc.) are resolved via a `REQUIRE_MAP` of original absolute paths; unknown names defer to `super`. `execute_with_tracker` captures stdout/stderr to `Tempfile`, clears `ARGV`, sets `$PROGRAM_NAME`, and `Kernel#load`s the source in-process.
 - `lib/uprb/cli.rb`, `exe/uprb` — CLI: `pack`, `gem install`, `gem pack`. Options: `--path DIR` (gem subcommands; default `Gem.bindir`).
 
-The output's shebang is the absolute `RbConfig.ruby` path plus `--disable-gems` by default. `--skip-disable-gems` drops the flag so the output starts Ruby normally (rubygems / `RUBYOPT` / Bundler Gemfile autodetection all active) — intended for vendoring-only use cases that accept normal startup cost.
+The output's shebang is the absolute `RbConfig.ruby` path plus `--disable-gems` by default. Two orthogonal opt-outs exist:
+
+- `--skip-disable-gems` drops the `--disable-gems` flag so the output starts Ruby normally (rubygems / `RUBYOPT` / Bundler Gemfile autodetection all active) — intended for vendoring-only use cases that accept normal startup cost.
+- `--skip-ruby-path-replace` keeps the source file's shebang ruby invocation verbatim (e.g. `/usr/bin/env ruby`) instead of rewriting it to `RbConfig.ruby` — intended for vendoring that wants a portable Ruby reference in the output. Errors if the source has no shebang.
+
+The two flags can be combined (e.g. `#!/usr/bin/env ruby` with no `--disable-gems`).
 
 ## Hard constraints on the generated executable
 
 Any change to the output generator must preserve these — violating any is a bug:
 
-- Absolute `RbConfig.ruby` path in the shebang; never `/usr/bin/env ruby`, never a PATH lookup
+- Absolute `RbConfig.ruby` path in the shebang by default; never `/usr/bin/env ruby`, never a PATH lookup. `--skip-ruby-path-replace` is the one documented opt-out, for vendoring-only outputs that preserve the source's shebang ruby invocation
 - `--disable-gems` in the shebang by default; rubygems is not available at runtime. `--skip-disable-gems` is the one documented opt-out, for vendoring-only outputs that accept normal Ruby startup cost
 - No `-I`, no `$LOAD_PATH` modification, no `RUBYLIB`, no Bundler
 - `.rb` dependencies are always embedded as ISeq binaries inside the `Marshal` payload; C extensions and other non-`.rb` requires are always referenced by their **original absolute path** via `REQUIRE_MAP` — never copied, never relocated

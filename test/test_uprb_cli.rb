@@ -84,6 +84,47 @@ class TestUprbCLI < Minitest::Test
     assert_includes out, "Etc loaded: true"
   end
 
+  def test_pack_with_skip_ruby_path_replace_keeps_source_ruby_invocation
+    dest = File.join("tmp", "skip_ruby_path_replace")
+
+    stdout, stderr, status = run_cli(
+      "pack", fixture_path("with_shebang.rb"), dest, "--force", "--skip-ruby-path-replace"
+    )
+    assert status.success?, stderr
+    assert_includes stdout, dest
+
+    shebang = File.open(dest, &:readline).chomp
+    assert_equal "#!/usr/bin/env ruby --disable-gems", shebang
+  end
+
+  def test_pack_with_skip_ruby_path_replace_is_orthogonal_to_skip_disable_gems
+    dest = File.join("tmp", "skip_ruby_path_replace_and_disable_gems")
+
+    stdout, stderr, status = run_cli(
+      "pack", fixture_path("with_shebang.rb"), dest, "--force",
+      "--skip-ruby-path-replace", "--skip-disable-gems",
+    )
+    assert status.success?, stderr
+    assert_includes stdout, dest
+
+    shebang = File.open(dest, &:readline).chomp
+    assert_equal "#!/usr/bin/env ruby", shebang
+
+    out, run_status = Bundler.with_unbundled_env { Open3.capture2e(dest) }
+    assert run_status.success?, out
+    assert_includes out, "Etc loaded: true"
+  end
+
+  def test_pack_with_skip_ruby_path_replace_errors_without_source_shebang
+    dest = File.join("tmp", "skip_ruby_path_replace_no_shebang")
+
+    _stdout, stderr, status = run_cli(
+      "pack", fixture_path("require_etc_so.rb"), dest, "--force", "--skip-ruby-path-replace"
+    )
+    refute status.success?
+    assert_includes stderr, "source has no shebang"
+  end
+
   def test_pack_default_keeps_disable_gems_in_shebang
     dest = File.join("tmp", "default_disable_gems")
 

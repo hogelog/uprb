@@ -59,7 +59,7 @@ module Uprb
       FileUtils.mkdir_p(File.dirname(dest_path))
       return unless confirm_overwrite(dest_path, options)
 
-      Uprb::RequireReplacer.pack(src_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems])
+      Uprb::RequireReplacer.pack(src_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems], skip_ruby_path_replace: options[:skip_ruby_path_replace])
 
       $stdout.puts("Packed #{dest_path}")
     end
@@ -97,6 +97,7 @@ module Uprb
         dynamic: false,
         script_argv: script_argv,
         skip_disable_gems: false,
+        skip_ruby_path_replace: false,
       }
       parser = OptionParser.new
       parser.on("--path DIR") do |dir|
@@ -116,6 +117,9 @@ module Uprb
       end
       parser.on("--skip-disable-gems", "drop --disable-gems from the shebang (vendoring only; trades fast startup for normal Ruby startup)") do
         options[:skip_disable_gems] = true
+      end
+      parser.on("--skip-ruby-path-replace", "keep the source file's shebang ruby invocation instead of rewriting it to an absolute RbConfig.ruby path (vendoring only; source must have a shebang)") do
+        options[:skip_ruby_path_replace] = true
       end
       args = parser.parse(argv)
 
@@ -162,7 +166,7 @@ module Uprb
 
         next unless confirm_overwrite(dest_path, options)
 
-        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems])
+        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems], skip_ruby_path_replace: options[:skip_ruby_path_replace])
         $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e

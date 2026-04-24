@@ -9,7 +9,7 @@ module Uprb
     class << self
       attr_reader :mapping
 
-      def pack(source_path, dest_path: nil, requires: [], dynamic: false, script_argv: [], skip_disable_gems: false)
+      def pack(source_path, dest_path: nil, requires: [], dynamic: false, script_argv: [], skip_disable_gems: false, skip_ruby_path_replace: false)
         source = File.read(source_path)
         mapping = build_mapping(source_path, requires, dynamic, script_argv)
         embedded, external = build_payload(mapping)
@@ -21,18 +21,18 @@ module Uprb
           main: main_iseq.to_binary
         })
 
-        shebang = skip_disable_gems ? "#!#{RbConfig.ruby}" : "#!#{RbConfig.ruby} --disable-gems"
+        shebang = resolve_shebang(source, skip_ruby_path_replace: skip_ruby_path_replace, skip_disable_gems: skip_disable_gems)
         wrapper = <<~RUBY
-           #{shebang}
-           DATA.binmode
-           data = Marshal.load(DATA)
+          #{shebang}
+          DATA.binmode
+          data = Marshal.load(DATA)
 
-           EMBEDDED_ISEQ = data.fetch(:embedded)
-           REQUIRE_MAP = data.fetch(:external)
+          EMBEDDED_ISEQ = data.fetch(:embedded)
+          REQUIRE_MAP = data.fetch(:external)
 
-           iseq = RubyVM::InstructionSequence.load_from_binary(data.fetch(:main))
-           iseq.eval
-           __END__
+          iseq = RubyVM::InstructionSequence.load_from_binary(data.fetch(:main))
+          iseq.eval
+          __END__
         RUBY
 
         program = wrapper + payload
@@ -43,6 +43,20 @@ module Uprb
       end
 
       private
+
+      def resolve_shebang(source, skip_ruby_path_replace:, skip_disable_gems:)
+        if skip_ruby_path_replace
+          first_line = source.lines.first&.chomp
+          unless first_line&.start_with?("#!")
+            raise Uprb::Error, "source has no shebang; --skip-ruby-path-replace requires one to preserve"
+          end
+          ruby_command = first_line[2..]
+        else
+          ruby_command = RbConfig.ruby
+        end
+
+        skip_disable_gems ? "#!#{ruby_command}" : "#!#{ruby_command} --disable-gems"
+      end
 
       # `--dynamic` alone would miss literal requires in branches the
       # execution didn't take (rescued `LoadError` alternates, unused

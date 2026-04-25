@@ -1,4 +1,19 @@
 module Uprb
   VERSION: String
   # See the writing guide of rbs: https://github.com/ruby/rbs#guides
+
+  module GemspecMetadata
+    KNOWN_KEYS: Array[String]
+    REQUIRES_KEY: String
+    REQUIRE_ENTRY_PATTERN: Regexp
+
+    class Result
+      attr_accessor requires: Array[String]
+      attr_accessor warnings: Array[String]
+      def initialize: (requires: Array[String], warnings: Array[String]) -> void
+    end
+
+    def self.read: (Gem::Specification spec) -> Result
+    def self.parse_requires: (String value) -> [Array[String], Array[String]]
+  end
 end

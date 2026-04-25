@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+puts "json: #{defined?(JSON::VERSION) ? "loaded" : "missing"}"
+puts "openssl: #{defined?(OpenSSL::VERSION) ? "loaded" : "missing"}"
+puts "etc: #{defined?(Etc) ? "loaded" : "missing"}"

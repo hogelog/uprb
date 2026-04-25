@@ -1,23 +1,13 @@
 # frozen_string_literal: true
 
 module Uprb
-  # Reads pack hints from `Gem::Specification#metadata`.
-  #
-  # Only `uprb.requires` is honored. Values are inert strings; uprb parses them
-  # into existing knobs. No code from the gem runs as a result of reading
-  # metadata.
   module GemspecMetadata
     KNOWN_KEYS = %w[uprb.requires].freeze
     REQUIRES_KEY = "uprb.requires"
-    # `,` split, trim. Each entry must match this to be honored. Rejects
-    # shell metacharacters, whitespace, and leading dashes (so the value can't
-    # smuggle a `-r` style argument).
     REQUIRE_ENTRY_PATTERN = %r{\A[A-Za-z0-9_.][A-Za-z0-9_./-]*\z}
 
     Result = Struct.new(:requires, :warnings, keyword_init: true)
 
-    # @param spec [Gem::Specification]
-    # @return [Result]
     def self.read(spec)
       metadata = spec.metadata || {}
       warnings = []
@@ -38,7 +28,7 @@ module Uprb
         end
       end
 
-      Result.new(requires: requires, warnings: warnings)
+      Result.new(requires:, warnings:)
     end
 
     def self.parse_requires(value)

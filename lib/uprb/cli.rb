@@ -173,7 +173,7 @@ module Uprb
 
         next unless confirm_overwrite(dest_path, options)
 
-        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: requires, dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems], skip_ruby_path_replace: options[:skip_ruby_path_replace])
+        Uprb::RequireReplacer.pack(source_path, dest_path:, requires:, dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems], skip_ruby_path_replace: options[:skip_ruby_path_replace])
         $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e

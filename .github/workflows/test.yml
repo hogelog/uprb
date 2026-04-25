@@ -34,27 +34,27 @@ jobs:
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
-      - name: Build and install rls example gem
+      - name: Install rls example gem
         working-directory: examples/rls
         run: |
-          gem build rls.gemspec
-          gem install --local --no-document rls-*.gem
+          bundle install
+          bundle exec rake install
       - name: Pack rls and verify packed binary runs
         run: |
           mkdir -p tmp/smoke-bin
           ruby ./exe/uprb gem pack rls --path "$PWD/tmp/smoke-bin"
           ./tmp/smoke-bin/rls --help
           ./tmp/smoke-bin/rls .
-      - name: Build and install s3-ls example gem
+      - name: Install s3-ls example gem
         working-directory: examples/s3-ls
         run: |
-          gem build s3-ls.gemspec
-          gem install --no-document s3-ls-*.gem
-      - name: Pack s3-ls with --with-rubygems --dynamic and verify packed binary runs
+          bundle install
+          bundle exec rake install
+      - name: Pack s3-ls with --dynamic and verify packed binary runs
         env:
           AWS_EC2_METADATA_DISABLED: 'true'
         run: |
-          ruby ./exe/uprb gem pack s3-ls --with-rubygems --dynamic --path "$PWD/tmp/smoke-bin"
+          ruby ./exe/uprb gem pack s3-ls --dynamic --path "$PWD/tmp/smoke-bin"
           ./tmp/smoke-bin/s3-ls --help
           if ./tmp/smoke-bin/s3-ls; then
             echo "expected non-zero exit without AWS credentials" >&2

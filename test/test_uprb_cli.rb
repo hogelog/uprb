@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require "test_helper"
+require "uprb/cli"
 require "open3"
+require "stringio"
 
 class TestUprbCLI < Minitest::Test
   def test_pack_builds_executable
@@ -152,6 +154,47 @@ class TestUprbCLI < Minitest::Test
     assert_includes out, "Aws"
   end
 
+  def test_gem_pack_applies_gemspec_metadata_requires
+    with_fixture_gem_spec("uprb.requires" => "json,openssl") do
+      dest_dir = File.expand_path("tmp/with_metadata_meta")
+      FileUtils.rm_rf(dest_dir)
+
+      stdout, stderr = run_cli_in_process(
+        "gem", "pack", "with-metadata", "--force", "--path", dest_dir
+      )
+      assert_includes stderr, "uprb: applying gemspec metadata uprb.requires"
+      assert_includes stdout, dest_dir
+
+      packed = File.join(dest_dir, "with-metadata")
+      assert File.executable?(packed), "expected packed binary to be executable"
+
+      out, run_status = Open3.capture2e(packed)
+      assert run_status.success?, out
+      assert_includes out, "json: loaded"
+      assert_includes out, "openssl: loaded"
+      assert_includes out, "etc: missing"
+    end
+  end
+
+  def test_gem_pack_merges_gemspec_metadata_with_cli_requires
+    with_fixture_gem_spec("uprb.requires" => "json,openssl") do
+      dest_dir = File.expand_path("tmp/with_metadata_merge")
+      FileUtils.rm_rf(dest_dir)
+
+      stdout, _stderr = run_cli_in_process(
+        "gem", "pack", "with-metadata", "--force", "--path", dest_dir, "-r", "etc"
+      )
+      assert_includes stdout, dest_dir
+
+      packed = File.join(dest_dir, "with-metadata")
+      out, run_status = Open3.capture2e(packed)
+      assert run_status.success?, out
+      assert_includes out, "json: loaded"
+      assert_includes out, "openssl: loaded"
+      assert_includes out, "etc: loaded"
+    end
+  end
+
   private
 
   def run_cli(*args)
@@ -160,5 +203,35 @@ class TestUprbCLI < Minitest::Test
       File.expand_path("../exe/uprb", __dir__),
       *args,
     )
+  end
+
+  def run_cli_in_process(*args)
+    orig_stdout = $stdout
+    orig_stderr = $stderr
+    $stdout = StringIO.new
+    $stderr = StringIO.new
+    Uprb::CLI.new(args).run
+    [$stdout.string, $stderr.string]
+  ensure
+    $stdout = orig_stdout
+    $stderr = orig_stderr
+  end
+
+  def with_fixture_gem_spec(metadata)
+    fixture_full_gem_path = fixture_path("gems/with-metadata-gem/gems/with-metadata-0.1.0")
+    spec = Gem::Specification.new do |s|
+      s.name = "with-metadata"
+      s.version = "0.1.0"
+      s.summary = "uprb test fixture"
+      s.authors = ["uprb test"]
+      s.bindir = "exe"
+      s.executables = ["with-metadata"]
+      s.metadata = metadata
+    end
+    spec.define_singleton_method(:full_gem_path) { fixture_full_gem_path }
+    Gem::Specification.add_spec(spec)
+    yield
+  ensure
+    Gem::Specification.remove_spec(spec) if spec
   end
 end

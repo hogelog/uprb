@@ -42,3 +42,11 @@ uprb gem install GEM_NAME
 - `--skip-disable-gems` — drop `--disable-gems` from the shebang (vendoring mode; gives up fast startup)
 - `--skip-ruby-path-replace` — keep the source shebang's ruby invocation instead of rewriting to an absolute path
 - `--path DIR` — destination directory (`gem` subcommands only)
+
+## Gemspec metadata
+
+`uprb gem pack` / `uprb gem install` honors `uprb.requires` (comma-separated) in `Gem::Specification#metadata` as additional pre-`require` libraries, merged with `-r`:
+
+```ruby
+spec.metadata["uprb.requires"] = "openssl,json"
+```

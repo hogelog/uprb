@@ -155,6 +155,13 @@ module Uprb
       raise Uprb::Error, "no executables for gem: #{gem_name}" if executables.empty?
       bindir = spec.bindir
 
+      metadata_result = Uprb::GemspecMetadata.read(spec)
+      metadata_result.warnings.each { |w| $stderr.puts(w) }
+      unless metadata_result.requires.empty?
+        $stderr.puts("uprb: applying gemspec metadata uprb.requires: #{metadata_result.requires.inspect}")
+      end
+      requires = (metadata_result.requires + options[:requires]).uniq
+
       dest_dir = options[:path] ? File.expand_path(options[:path]) : Gem.bindir
       FileUtils.mkdir_p(dest_dir)
 
@@ -166,7 +173,7 @@ module Uprb
 
         next unless confirm_overwrite(dest_path, options)
 
-        Uprb::RequireReplacer.pack(source_path, dest_path:, requires: options[:requires], dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems], skip_ruby_path_replace: options[:skip_ruby_path_replace])
+        Uprb::RequireReplacer.pack(source_path, dest_path:, requires:, dynamic: options[:dynamic], script_argv: options[:script_argv], skip_disable_gems: options[:skip_disable_gems], skip_ruby_path_replace: options[:skip_ruby_path_replace])
         $stdout.puts("Packed #{dest_path}")
       end
     rescue Gem::LoadError => e

@@ -4,8 +4,6 @@
 # Loaded as text and substituted at pack time; do NOT `require` this file.
 # See `render_bootstrap` in require_replacer.rb for the substitution markers.
 #
-Warning[:experimental] = false
-
 DATA.binmode
 data = Marshal.load(DATA)
 
@@ -101,22 +99,21 @@ unless File.exist?(ready)
         FileUtils.rm_rf(hash_dir) if File.directory?(hash_dir)
         FileUtils.mkdir_p(tmp, mode: 0o700)
 
-        buf = IO::Buffer.for(NATIVE_SECTION)
+        blob = NATIVE_SECTION
         offset = 0
-        version = buf.get_value(:U32, offset); offset += 4
+        version, count = blob[offset, 8].unpack("NN")
+        offset += 8
         if version != 1
           $stderr.puts("uprb: unsupported native section version: #{version}")
           exit 1
         end
-        count = buf.get_value(:U32, offset); offset += 4
         count.times do
-          ln_size = buf.get_value(:U32, offset); offset += 4
+          ln_size = blob[offset, 4].unpack1("N"); offset += 4
           offset += ln_size # logical_name not needed at extract time
-          rp_size = buf.get_value(:U32, offset); offset += 4
-          rp = buf.get_string(offset, rp_size); offset += rp_size
-          mode = buf.get_value(:U32, offset); offset += 4
-          bytes_size = buf.get_value(:U32, offset); offset += 4
-          bytes = buf.get_string(offset, bytes_size); offset += bytes_size
+          rp_size = blob[offset, 4].unpack1("N"); offset += 4
+          rp = blob[offset, rp_size]; offset += rp_size
+          mode, bytes_size = blob[offset, 8].unpack("NN"); offset += 8
+          bytes = blob[offset, bytes_size]; offset += bytes_size
           target = File.join(tmp, rp)
           FileUtils.mkdir_p(File.dirname(target))
           File.binwrite(target, bytes)

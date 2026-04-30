@@ -20,51 +20,74 @@ module Uprb
   #     bytes  bytes
   #
   # Stdlib only (no Marshal, no zlib) so the runtime decoder can be inlined
-  # into the bootstrap loader and run under `--disable-gems`.
+  # into the bootstrap loader and run under `--disable-gems`. `IO::Buffer` is
+  # used to read/write fixed-width fields without intermediate allocations.
   module NativeSection
     VERSION = 1
 
     class << self
       # records: array of { logical_name:, relative_path:, mode:, bytes: }
-      # The records are emitted in the given order; callers should sort by
+      # Records are emitted in the given order; callers should sort by
       # relative_path for hash stability.
       def encode(records)
-        io = String.new(encoding: Encoding::BINARY)
-        io << [VERSION, records.size].pack("NN")
+        Warning[:experimental] = false
+
+        total = 8 # version + count
         records.each do |r|
-          write_string(io, r.fetch(:logical_name))
-          write_string(io, r.fetch(:relative_path))
-          io << [r.fetch(:mode) & 0xFFFFFFFF, r.fetch(:bytes).bytesize].pack("NN")
-          io << r.fetch(:bytes).b
+          total += 4 + r.fetch(:logical_name).bytesize
+          total += 4 + r.fetch(:relative_path).bytesize
+          total += 4 + 4 + r.fetch(:bytes).bytesize
         end
-        io
+
+        buf = IO::Buffer.new(total)
+        offset = 0
+        buf.set_value(:U32, offset, VERSION)
+        offset += 4
+        buf.set_value(:U32, offset, records.size)
+        offset += 4
+        records.each do |r|
+          offset = write_string(buf, offset, r.fetch(:logical_name))
+          offset = write_string(buf, offset, r.fetch(:relative_path))
+          buf.set_value(:U32, offset, r.fetch(:mode) & 0xFFFFFFFF)
+          offset += 4
+          bytes = r.fetch(:bytes).b
+          buf.set_value(:U32, offset, bytes.bytesize)
+          offset += 4
+          buf.set_string(bytes, offset)
+          offset += bytes.bytesize
+        end
+        buf.get_string(0, total)
       end
 
       def decode(blob)
-        b = blob.b
-        pos = 0
-        version, count = b[pos, 8].unpack("NN")
-        pos += 8
+        Warning[:experimental] = false
+
+        buf = IO::Buffer.for(blob)
+        offset = 0
+        version = buf.get_value(:U32, offset); offset += 4
+        count = buf.get_value(:U32, offset); offset += 4
         raise Uprb::Error, "unsupported native section version: #{version}" unless version == VERSION
 
-        records = Array.new(count) do
-          ln_size = b[pos, 4].unpack1("N"); pos += 4
-          ln = b[pos, ln_size].force_encoding(Encoding::UTF_8); pos += ln_size
-          rp_size = b[pos, 4].unpack1("N"); pos += 4
-          rp = b[pos, rp_size].force_encoding(Encoding::UTF_8); pos += rp_size
-          mode, bytes_size = b[pos, 8].unpack("NN"); pos += 8
-          bytes = b[pos, bytes_size]; pos += bytes_size
+        Array.new(count) do
+          ln_size = buf.get_value(:U32, offset); offset += 4
+          ln = buf.get_string(offset, ln_size).force_encoding(Encoding::UTF_8); offset += ln_size
+          rp_size = buf.get_value(:U32, offset); offset += 4
+          rp = buf.get_string(offset, rp_size).force_encoding(Encoding::UTF_8); offset += rp_size
+          mode = buf.get_value(:U32, offset); offset += 4
+          bytes_size = buf.get_value(:U32, offset); offset += 4
+          bytes = buf.get_string(offset, bytes_size); offset += bytes_size
           { logical_name: ln, relative_path: rp, mode: mode, bytes: bytes }
         end
-        records
       end
 
       private
 
-      def write_string(io, str)
+      def write_string(buf, offset, str)
         bytes = str.b
-        io << [bytes.bytesize].pack("N")
-        io << bytes
+        buf.set_value(:U32, offset, bytes.bytesize)
+        offset += 4
+        buf.set_string(bytes, offset)
+        offset + bytes.bytesize
       end
     end
   end

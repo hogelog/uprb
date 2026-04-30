@@ -5,7 +5,9 @@
 
 uprb packs a Ruby script into a single executable with fast, deterministic startup.
 
-The output still requires a Ruby interpreter and is tied to the Ruby and gems active at pack time. The default shebang runs Ruby with `--disable-gems`; flags below can change this.
+The output is a single file: `.rb` dependencies are embedded as `RubyVM::InstructionSequence` binaries and native extensions (`.so` and companion files) are bundled inside the payload, then extracted on first run into a content-addressed cache directory and `dlopen`'d from there. Re-runs find the cache warm and skip extraction.
+
+The output still requires a Ruby interpreter and stays ABI-locked to the Ruby and gems active at pack time. The default shebang runs Ruby with `--disable-gems`; flags below can change this.
 
 ## Install
 
@@ -42,6 +44,16 @@ uprb gem install GEM_NAME
 - `--skip-disable-gems` — drop `--disable-gems` from the shebang (vendoring mode; gives up fast startup)
 - `--skip-ruby-path-replace` — keep the source shebang's ruby invocation instead of rewriting to an absolute path
 - `--path DIR` — destination directory (`gem` subcommands only)
+
+## Runtime cache
+
+Packed outputs extract their bundled native extensions into a content-addressed cache directory on first run. The directory is resolved in this order:
+
+1. `--cache-dir DIR` — runtime flag on the packed output. Recognized only when it is the first argument and is followed by `--`: `packed_script --cache-dir DIR -- user args`. Without `--`, the loader leaves `ARGV` alone.
+2. `$XDG_CACHE_HOME/uprb/`, falling back to `~/.cache/uprb/`.
+3. `$TMPDIR/uprb-<uid>/` (final fallback).
+
+The cache is keyed by the SHA-256 of the bundled native section, so re-compiling `.rb` ISeqs (e.g. across Ruby patch versions) does not invalidate it. The cache contents are safe to remove with `rm -rf` at any time.
 
 ## Gemspec metadata
 

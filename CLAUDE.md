@@ -19,7 +19,8 @@ Packs a Ruby script into a deterministic, fast-starting executable by **freezing
 
 - `lib/uprb/require_tracker.rb` — aliases `Kernel#require` / `Kernel#require_relative` and records `name => $LOADED_FEATURES` path on every successful call.
 - `lib/uprb/static_require_tracker.rb` — the **default** tracer. Two passes: (1) parse the entry with Prism and actually `require` each literal require/autoload target — libraries load normally but the entry's other top-level code (e.g. `App.start(ARGV)`) does not run, and everything pulled in transitively is recorded via `RequireTracker`; (2) `StaticWalker` recursively parses every reachable `.rb` file to pick up literal requires and autoload paths that the runtime never hit (rescued `LoadError` alternates, unused autoloads, feature-flag branches). The merged map uses dynamic results on conflict since those reflect the actually-resolved path. Interpolated-string requires triggered only by runtime execution (e.g. `require "foo/#{name}"` inside a method called by the entry) are still missed — those need `--dynamic`.
-- `lib/uprb/require_replacer.rb` — `pack` builds the mapping via `build_mapping` (default: `StaticRequireTracker.trace`; `--dynamic`: `execute_with_tracker` + `StaticWalker` as a second pass so the runtime-only captures are augmented with literal/autoload paths not exercised by the execution). Then compiles the main script and every `.rb` entry into `RubyVM::InstructionSequence` binaries and appends a `Marshal` payload after `__END__`. A prepended `FixedRequire` module serves embedded ISeqs; non-`.rb` requires (C extensions etc.) are resolved via a `REQUIRE_MAP` of original absolute paths; unknown names defer to `super`. `execute_with_tracker` captures stdout/stderr to `Tempfile`, clears `ARGV`, sets `$PROGRAM_NAME`, and `Kernel#load`s the source in-process.
+- `lib/uprb/require_replacer.rb` — `pack` builds the mapping via `build_mapping` (default: `StaticRequireTracker.trace`; `--dynamic`: `execute_with_tracker` + `StaticWalker` as a second pass so the runtime-only captures are augmented with literal/autoload paths not exercised by the execution). Then compiles the main script and every `.rb` entry into `RubyVM::InstructionSequence` binaries, encodes the bundled native extensions into a hand-rolled length-prefixed `native section`, and appends a `Marshal` payload after `__END__`. The bootstrap loader resolves a content-addressed cache directory (`--cache-dir DIR --` runtime flag, then `$XDG_CACHE_HOME/uprb/` or `~/.cache/uprb/`, then `Dir.tmpdir/uprb-#{uid}/`), `flock`s `<cache>/<hash>.lock`, extracts the section into `<cache>/<hash>.tmp/`, writes a `READY` sentinel, and atomically `rename`s into place. A prepended `FixedRequire` module serves embedded ISeqs; native requires resolve through a unified `REQUIRE_MAP` of cache-relative paths under the extracted hash directory. `execute_with_tracker` captures stdout/stderr to `Tempfile`, clears `ARGV`, sets `$PROGRAM_NAME`, and `Kernel#load`s the source in-process.
+- `lib/uprb/native_section.rb` — encoding/decoding of the native section blob.
 - `lib/uprb/cli.rb`, `exe/uprb` — CLI: `pack`, `gem install`, `gem pack`. Options: `--path DIR` (gem subcommands; default `Gem.bindir`).
 
 The output gets a shebang only when the source does. With a source shebang, the wrapper's shebang is the absolute `RbConfig.ruby` path plus `--disable-gems` by default. Two orthogonal opt-outs:
@@ -36,19 +37,20 @@ Any change to the output generator must preserve these — violating any is a bu
 - Absolute `RbConfig.ruby` path in the shebang by default; never `/usr/bin/env ruby`, never a PATH lookup. `--skip-ruby-path-replace` is the one documented opt-out, for vendoring-only outputs that preserve the source's shebang ruby invocation
 - `--disable-gems` in the shebang by default; rubygems is not available at runtime. `--skip-disable-gems` is the one documented opt-out, for vendoring-only outputs that accept normal Ruby startup cost
 - No `-I`, no `$LOAD_PATH` modification, no `RUBYLIB`, no Bundler
-- `.rb` dependencies are always embedded as ISeq binaries inside the `Marshal` payload; C extensions and other non-`.rb` requires are always referenced by their **original absolute path** via `REQUIRE_MAP` — never copied, never relocated
+- `.rb` dependencies are always embedded as ISeq binaries inside the `Marshal` payload; native extensions and their companion files are always bundled into the payload's `native` section and only loaded from the content-addressed cache directory after first-run extraction. The output contains no pack-time host paths for non-`.rb` requires.
 
 ## Non-goals
 
 Declining these is a design choice, not a todo:
 
-- Bundling Ruby itself; vendoring C extensions; cross-machine portability
+- Bundling Ruby itself; cross-machine portability
 - Surviving Ruby/gem upgrades, graceful degradation
 - Plugin systems or dynamic resolution beyond the frozen mapping
+- In-memory `dlopen` of bundled native extensions (Linux `memfd_create` + `/proc/self/fd/N`). Disk extraction into the content-addressed cache is the only supported path.
 
-(Compiled `.rb` sources are embedded in the output, so it is *partially* self-contained for pure-Ruby deps. C extensions and the Ruby interpreter are still referenced by absolute path, so the output remains tied to the machine it was packed on.)
+(Compiled `.rb` sources and bundled native extensions are both embedded in the output. The Ruby interpreter is still referenced by absolute path in the shebang, and the output stays ABI-locked to the pack-time Ruby/glibc, so it remains tied to the family of machines compatible with the pack-time host.)
 
-The output is expected to break when the Ruby path moves, C extension paths change, gems are up/downgraded, or new code paths hit unseen `require`s. The only remediation is `uprb pack <src> <dest>`.
+The output is expected to break when the Ruby ABI changes, gems are up/downgraded, or new code paths hit unseen `require`s. The only remediation is `uprb pack <src> <dest>`.
 
 ## Testing notes
 

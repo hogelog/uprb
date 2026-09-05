@@ -71,15 +71,38 @@ module Uprb
           target_name = name
           suffixes = Uprb::SUFFIXES
         end
+
+        # A suffix-only match against $LOADED_FEATURES can confuse `set` with
+        # an unrelated rubygems/resolver/set.rb that happened to be loaded.
+        # Prefer the file Ruby would resolve for the requested feature name.
+        unless absolute_path?(name)
+          $LOAD_PATH.each do |dir|
+            suffixes.each do |suffix|
+              candidate = File.join(dir, "#{target_name}#{suffix}")
+              return candidate if File.file?(candidate)
+            end
+          end
+        end
+
         suffixes.each do |suffix|
           pattern = /(?:\A|#{File::SEPARATOR})#{target_name}#{suffix}\z/
           # Ruby appends the parent after its nested children; search from the tail to hit it first.
           entries.reverse_each do |f|
-            return f if pattern.match?(f)
+            next unless pattern.match?(f)
+            return f if absolute_path?(name) || resolves_from_load_path?(f, target_name, suffixes)
           end
         end
 
         nil
+      end
+
+      def resolves_from_load_path?(path, target_name, suffixes)
+        expanded_path = File.expand_path(path)
+        $LOAD_PATH.any? do |dir|
+          suffixes.any? do |suffix|
+            expanded_path == File.expand_path("#{target_name}#{suffix}", dir)
+          end
+        end
       end
 
       def absolute_path?(name)

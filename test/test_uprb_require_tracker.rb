@@ -72,4 +72,15 @@ class TestUprbRequireTracker < Minitest::Test
       $LOADED_FEATURES.delete(child)
     end
   end
+
+  def test_does_not_confuse_a_nested_loaded_feature_with_the_requested_feature
+    polluting_path = "/tmp/rubygems/resolver/set.rb"
+    $LOADED_FEATURES << polluting_path
+    begin
+      refute require("set")
+      refute_equal polluting_path, Uprb::RequireTracker.mapping["set"]
+    ensure
+      $LOADED_FEATURES.delete(polluting_path)
+    end
+  end
 end

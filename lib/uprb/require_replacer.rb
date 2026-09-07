@@ -1,49 +1,33 @@
 # frozen_string_literal: true
 
 require "fileutils"
+require "digest"
 require "rbconfig"
 require "tempfile"
 
 module Uprb
   module RequireReplacer
+    BUILTIN_FEATURES = $LOADED_FEATURES.reject { |path| path.include?(File::SEPARATOR) }.freeze
+
     class << self
       attr_reader :mapping
 
       def pack(source_path, dest_path: nil, requires: [], dynamic: false, script_argv: [], skip_disable_gems: false, skip_ruby_path_replace: false)
         source = File.read(source_path)
         mapping = build_mapping(source_path, requires, dynamic, script_argv)
-        embedded, external = build_payload(mapping)
-        ruby_source = source_with_require_hook(source, requires)
-        main_iseq = RubyVM::InstructionSequence.compile(ruby_source, source_path, source_path)
-        payload = Marshal.dump({
-          embedded: embedded,
-          external: external,
-          main: main_iseq.to_binary
-        })
+        data = build_payload(mapping)
+        main_iseq = RubyVM::InstructionSequence.compile(source, source_path, source_path)
+        data[:main] = main_iseq.to_binary
 
         shebang = resolve_shebang(source, skip_ruby_path_replace: skip_ruby_path_replace, skip_disable_gems: skip_disable_gems)
-        body = <<~RUBY
-          DATA.binmode
-          data = Marshal.load(DATA)
+        program = String.new(encoding: Encoding::BINARY)
+        program << "#{shebang}\n".b if shebang
+        program << render_bootstrap(requires, native: data.key?(:native)).b
+        program << Marshal.dump(data)
+        return program unless dest_path
 
-          EMBEDDED_ISEQ = data.fetch(:embedded)
-          REQUIRE_MAP = data.fetch(:external)
-
-          iseq = RubyVM::InstructionSequence.load_from_binary(data.fetch(:main))
-          iseq.eval
-          __END__
-        RUBY
-
-        if shebang
-          program = "#{shebang}\n#{body}#{payload}"
-          return program unless dest_path
-          File.write(dest_path, program)
-          FileUtils.chmod("+x", dest_path)
-        else
-          program = body + payload
-          return program unless dest_path
-          File.write(dest_path, program)
-        end
+        File.binwrite(dest_path, program)
+        FileUtils.chmod("+x", dest_path) if shebang
       end
 
       private
@@ -110,61 +94,105 @@ module Uprb
         mapping
       end
 
-      def source_with_require_hook(source, requires = [])
-        preload_lines = requires.map {|lib| "require #{lib.inspect}" }.join("\n")
-        pre_code = <<~RUBY
-        module FixedRequire
-          SUFFIXES = #{Uprb::SUFFIXES.inspect}.freeze
-
-          def require(name)
-            entry = EMBEDDED_ISEQ[name]
-            if entry
-              path, binary = entry
-              return false if $LOADED_FEATURES.include?(path) || $LOADED_FEATURES.include?(name)
-              $LOADED_FEATURES << path
-              $LOADED_FEATURES << name unless $LOADED_FEATURES.include?(name)
-              mark_runtime_resolved(name, path)
-              RubyVM::InstructionSequence.load_from_binary(binary).eval
-              true
-            elsif (path = REQUIRE_MAP[name])
-              result = super(path)
-              mark_runtime_resolved(name, path) if result
-              result
-            else
-              super(name)
+      def render_bootstrap(requires, native:)
+        body = +"DATA.binmode\ndata = Marshal.load(DATA)\n"
+        body << File.read(File.join(__dir__, "require_hook.rb")).sub("__UPRB_SUFFIXES__", Uprb::SUFFIXES.inspect)
+        body << "\nUprbRuntime::EMBEDDED_ISEQ = data.fetch(:embedded)\n"
+        if native
+          body << File.read(File.join(__dir__, "native_section.rb"))
+          body << File.read(File.join(__dir__, "native_cache.rb"))
+          body << <<~RUBY
+            begin
+              UprbRuntime::NATIVE_MAP = UprbRuntime::NativeCache.new(data.fetch(:native)).resolve
+            rescue UprbRuntime::NativeCache::Error, SystemCallError, ArgumentError => e
+              warn "uprb: \#{e.message}"
+              exit 1
             end
-          end
-
-          # C extensions bypass this hook via rb_require(); pre-mark the path
-          # $LOAD_PATH would resolve `name` to so they see it as already loaded.
-          def mark_runtime_resolved(name, loaded_path)
-            resolved = $LOAD_PATH.lazy.flat_map {|d| SUFFIXES.map {|s| File.join(d, "\#{name}\#{s}") } }.find {|p| File.file?(p) }
-            return unless resolved && resolved != loaded_path && !$LOADED_FEATURES.include?(resolved)
-            $LOADED_FEATURES << resolved
-          end
+          RUBY
         end
-
-        Kernel.prepend(FixedRequire)
-        #{preload_lines}
-        RUBY
-        pre_code + source
+        body << "Kernel.prepend(UprbRuntime::NativeRequire)\n" if native
+        body << "Kernel.prepend(UprbRuntime::FixedRequire)\n"
+        requires.each { |lib| body << "require #{lib.inspect}\n" }
+        body << "RubyVM::InstructionSequence.load_from_binary(data.fetch(:main)).eval\n__END__\n"
       end
 
       def build_payload(mapping)
         embedded = {}
-        external = {}
+        natives = {}
 
         mapping.each do |name, path|
-          if path.is_a?(String) && File.file?(path) && File.extname(path) == ".rb"
+          unless path.is_a?(String)
+            raise Uprb::Error, "unsupported require mapping for #{name.inspect}: #{path.inspect}"
+          end
+          # Only real built-ins may fall through without an on-disk file.
+          next if BUILTIN_FEATURES.include?(path)
+          unless File.absolute_path?(path) && File.file?(path)
+            raise Uprb::Error, "cannot bundle require #{name.inspect}: #{path.inspect} is not an existing absolute file"
+          end
+
+          if File.extname(path) == ".rb"
             source = File.read(path)
             iseq = RubyVM::InstructionSequence.compile(source, path, path)
-            embedded[name] = [path, iseq.to_binary]
+            entry = [path, iseq.to_binary]
+            feature_aliases(name, path).each { |feature| embedded[feature] ||= entry }
+          elsif Uprb::DL_SUFFIXES.include?(File.extname(path))
+            natives[name] = path
           else
-            external[name] = path
+            raise Uprb::Error, "unsupported require shape for #{name.inspect}: #{path} (expected .rb or native extension)"
           end
         end
 
-        [embedded, external]
+        data = { embedded: embedded }
+        data[:native] = build_native_payload(natives) unless natives.empty?
+        data
+      end
+
+      def feature_aliases(name, path)
+        base = Uprb::SUFFIXES.include?(File.extname(name)) ? name.delete_suffix(File.extname(name)) : name
+        suffixes = File.extname(path) == ".rb" ? [".rb"] : Uprb::DL_SUFFIXES
+        ([name, path, path.delete_suffix(File.extname(path)), base] + suffixes.map { |suffix| "#{base}#{suffix}" }).uniq
+      end
+
+      def build_native_payload(natives)
+        records = []
+        manifest = {}
+        # Keep siblings together for $ORIGIN / @loader_path dependencies.
+        # Order by logical names so moving an identical source tree does
+        # not change the native section hash.
+        groups = natives.group_by { |_name, path| File.dirname(path) }
+        groups.values.sort_by { |entries| entries.map { |name, _| name }.sort }.each_with_index do |entries, index|
+          primaries = entries.map(&:last).uniq
+          directory = File.dirname(primaries.first)
+          files = primaries + companion_files(directory, primaries)
+          files.uniq.sort.each do |path|
+            relative = "#{index}/#{path.delete_prefix("#{directory}/")}"
+            records << { logical_name: relative, relative_path: relative,
+              mode: File.stat(path).mode, bytes: File.binread(path) }
+          end
+          entries.each do |name, path|
+            feature_aliases(name, path).each do |feature|
+              manifest[feature] ||= "#{index}/#{File.basename(path)}"
+            end
+          end
+        end
+        section = UprbRuntime::NativeSection.encode(records.sort_by { |record| record[:relative_path] })
+        { section: section, hash: Digest::SHA256.hexdigest(section), manifest: manifest }
+      end
+
+      def companion_files(directory, primaries)
+        return [] unless primaries.any? { |path| File.basename(path, ".*") == File.basename(directory) }
+
+        # Only scan the extension's own directory, never the whole Ruby
+        # installation. Ruby sources still go through ISeq compilation.
+        Dir.glob("**/*", File::FNM_DOTMATCH, base: directory).filter_map do |relative|
+          path = File.join(directory, relative)
+          next unless File.file?(path)
+          next if path.end_with?(".rb") || primaries.include?(path)
+          unless File.realpath(path).start_with?("#{File.realpath(directory)}/")
+            raise Uprb::Error, "native companion escapes its directory: #{path}"
+          end
+          path
+        end
       end
     end
   end

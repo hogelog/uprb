@@ -15,7 +15,7 @@ class TestUprbRequireReplacer < Minitest::Test
 
     assert_includes script, "InstructionSequence"
 
-    out, status = Open3.capture2e(script_path)
+    out, status = Open3.capture2e(packed_environment, script_path)
     assert status.success?
     assert_includes out, "Etc loaded: true"
   end
@@ -24,7 +24,7 @@ class TestUprbRequireReplacer < Minitest::Test
     script_path = File.join("tmp", "require_time")
     Uprb::RequireReplacer.pack(fixture_path("require_time.rb"), dest_path: script_path)
 
-    out, status = Open3.capture2e(script_path)
+    out, status = Open3.capture2e(packed_environment, script_path)
     assert status.success?, out
     assert_includes out, "Time parsed: 2024-01-02 03:04:05 UTC"
   end
@@ -33,7 +33,7 @@ class TestUprbRequireReplacer < Minitest::Test
     script_path = File.join("tmp", "require_minitest")
     Uprb::RequireReplacer.pack(fixture_path("require_minitest.rb"), dest_path: script_path)
 
-    out, status = Open3.capture2e(script_path)
+    out, status = Open3.capture2e(packed_environment, script_path)
     assert status.success?, out
     assert_includes out, "Minitest loaded: true"
   end

@@ -5,7 +5,9 @@
 
 uprb packs a Ruby script into a single executable with fast, deterministic startup.
 
-The output still requires a Ruby interpreter and is tied to the Ruby and gems active at pack time. The default shebang runs Ruby with `--disable-gems`; flags below can change this.
+Ruby dependencies are embedded as ISeq binaries. Native extensions are bundled too, and extracted into a reusable cache on first run. Outputs with no native extensions include no cache loader and do not touch the cache.
+
+The output still requires the pack-time Ruby interpreter and compatible Ruby/OS libraries; it is not a cross-platform binary. Original source filenames remain in ISeqs for diagnostics and relative requires. The default shebang runs Ruby with `--disable-gems`; flags below can change this.
 
 ## Install
 
@@ -42,6 +44,20 @@ uprb gem install GEM_NAME
 - `--skip-disable-gems` — drop `--disable-gems` from the shebang (vendoring mode; gives up fast startup)
 - `--skip-ruby-path-replace` — keep the source shebang's ruby invocation instead of rewriting to an absolute path
 - `--path DIR` — destination directory (`gem` subcommands only)
+
+## Native cache
+
+Set `RUBY_UPRB_CACHE_DIR` to override the cache location:
+
+```bash
+RUBY_UPRB_CACHE_DIR=/path/to/cache packed_script --your-options
+```
+
+The loader tries this directory first, then `$XDG_CACHE_HOME/uprb` (or `~/.cache/uprb`), then `uprb-<uid>` under the temporary directory (`TMPDIR`, `TMP`, `TEMP`, or `/tmp`). Empty environment values are ignored. Cache roots must be owned by the current user and not writable by other users. An unusable location falls through to the next candidate; a `noexec` error asks you to set `RUBY_UPRB_CACHE_DIR` to an executable filesystem.
+
+Native files live in a private directory keyed by the SHA-256 of their bundled contents. Concurrent first runs share a lock and publish the extraction by atomic rename. Warm runs check file metadata; changes trigger comparison with the embedded bytes and repair if needed. Cache directories can be deleted when no packed process is using them; the next run rebuilds them.
+
+Packed programs receive `ARGV` unchanged, including `--cache-dir` and `--`: there are no uprb runtime CLI options. Native companions in an extension's own same-named directory retain their relative layout. Arbitrary gem data files and system shared libraries are not bundled; unknown runtime requires still use Ruby's normal loader.
 
 ## Gemspec metadata
 

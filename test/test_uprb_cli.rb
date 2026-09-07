@@ -23,7 +23,7 @@ class TestUprbCLI < Minitest::Test
     assert status.success?, stderr
     assert_includes stdout, dest
 
-    out, run_status = Open3.capture2e(dest)
+    out, run_status = Open3.capture2e(packed_environment, dest)
     assert run_status.success?, out
     assert_includes out, "1.2.3"
   end
@@ -37,7 +37,7 @@ class TestUprbCLI < Minitest::Test
     assert status.success?, stderr
     assert_includes stdout, dest
 
-    out, run_status = Open3.capture2e(dest)
+    out, run_status = Open3.capture2e(packed_environment, dest)
     assert run_status.success?, out
     assert_includes out, "ok"
   end
@@ -51,7 +51,7 @@ class TestUprbCLI < Minitest::Test
     assert status.success?, stderr
     assert_includes stdout, dest
 
-    out, run_status = Open3.capture2e(dest)
+    out, run_status = Open3.capture2e(packed_environment, dest)
     assert run_status.success?, out
     assert_includes out, "Time parsed: 2024-01-02 03:04:05 UTC"
   end
@@ -80,7 +80,7 @@ class TestUprbCLI < Minitest::Test
     assert_includes shebang, RbConfig.ruby
     refute_includes shebang, "--disable-gems"
 
-    out, run_status = Open3.capture2e(dest)
+    out, run_status = Open3.capture2e(packed_environment, dest)
     assert run_status.success?, out
     assert_includes out, "Etc loaded: true"
   end
@@ -111,7 +111,7 @@ class TestUprbCLI < Minitest::Test
     shebang = File.open(dest, &:readline).chomp
     assert_equal "#!/usr/bin/env ruby", shebang
 
-    out, run_status = Open3.capture2e(dest)
+    out, run_status = Open3.capture2e(packed_environment, dest)
     assert run_status.success?, out
     assert_includes out, "Etc loaded: true"
   end
@@ -127,7 +127,7 @@ class TestUprbCLI < Minitest::Test
     refute first_line.start_with?("#!"), "expected no shebang, got: #{first_line.inspect}"
     refute File.executable?(dest), "expected non-executable output when source has no shebang"
 
-    out, run_status = Open3.capture2e(RbConfig.ruby, dest)
+    out, run_status = Open3.capture2e(packed_environment, RbConfig.ruby, dest)
     assert run_status.success?, out
     assert_includes out, "no shebang: ok"
   end
@@ -149,7 +149,7 @@ class TestUprbCLI < Minitest::Test
     assert status.success?, stderr
     assert_includes stdout, dest
 
-    out, status = Open3.capture2e(dest)
+    out, status = Open3.capture2e(packed_environment, dest)
     assert status.success?, out
     assert_includes out, "Aws"
   end
@@ -168,7 +168,7 @@ class TestUprbCLI < Minitest::Test
       packed = File.join(dest_dir, "with-metadata")
       assert File.executable?(packed), "expected packed binary to be executable"
 
-      out, run_status = Open3.capture2e(packed)
+      out, run_status = Open3.capture2e(packed_environment, packed)
       assert run_status.success?, out
       assert_includes out, "json: loaded"
       assert_includes out, "openssl: loaded"
@@ -187,7 +187,7 @@ class TestUprbCLI < Minitest::Test
       assert_includes stdout, dest_dir
 
       packed = File.join(dest_dir, "with-metadata")
-      out, run_status = Open3.capture2e(packed)
+      out, run_status = Open3.capture2e(packed_environment, packed)
       assert run_status.success?, out
       assert_includes out, "json: loaded"
       assert_includes out, "openssl: loaded"
